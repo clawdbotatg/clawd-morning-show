@@ -35,21 +35,20 @@ Full plan: **[DESIGN.md](DESIGN.md)**.
 ## Run it (v0)
 
 ```
-cp .env.example .env         # put OPENAI_API_KEY in it
-./scripts/voice-samples.sh   # once: listen, pick the brand voice (VOICE= in .env)
+cp .env.example .env         # ElevenLabs creds — same as clawd-video-chat's
 ./scripts/make-show.sh samples/digest.md
 # -> out/show-YYYY-MM-DD.mp4 + suggested tweet text on stdout
 ```
 
 Stages (each idempotent — skips fresh outputs, `FORCE=1` re-runs):
-`01-script.sh` digest → ~320 spoken words via `claude -p` + `prompts/host.md` ·
-`02-tts.sh` OpenAI `gpt-4o-mini-tts` (no key → loud macOS `say` fallback) ·
-`03-captions.sh` whisper word timestamps (no key → loud uniform-timing
-fallback) → `.ass` captions · `04-render.sh` avatar comp: idle cold-open →
-seam-hidden chatting loop for the narration → idle outro, headline ticker +
-burned captions → H.264 mp4. Needs an ffmpeg with libass/freetype
-(`brew install ffmpeg-full` — the plain brew bottle dropped them). Posting is
-deliberately not wired yet.
+`01-script.sh` digest → ~290 spoken words via `claude -p` + `prompts/host.md` ·
+`02-tts.sh` ElevenLabs `with-timestamps` — **clawd's existing clawd-video-chat
+voice** (`ELEVENLABS_VOICE_ID`), audio + word timings in one call (no key →
+loud macOS `say` fallback) · `03-captions.sh` timings → burned `.ass` captions ·
+`04-render.sh` avatar comp: idle cold-open → seam-hidden chatting loop for the
+narration → idle outro, headline ticker + burned captions → H.264 mp4. Needs
+an ffmpeg with libass/freetype (`brew install ffmpeg-full` — the plain brew
+bottle dropped them). Posting is deliberately not wired yet.
 
 ## Status
 

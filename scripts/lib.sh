@@ -20,11 +20,6 @@ load_env() {
   fi
 }
 
-need_openai_key() {
-  load_env
-  [ -n "${OPENAI_API_KEY:-}" ] || die "OPENAI_API_KEY not set — put it in $ROOT/.env (see .env.example)"
-}
-
 # skip a stage when its output already exists and is newer than the input.
 # usage: skip_if_fresh <out> <in> && exit 0 (FORCE=1 always re-runs)
 skip_if_fresh() {

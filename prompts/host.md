@@ -6,7 +6,8 @@ spoken morning show over today's digest.
 
 Rewrite the digest below as a SPOKEN script. Rules:
 
-- **300–330 words total.** Hard cap 340. This is ~2 minutes at talking pace.
+- **270–300 words total.** Hard cap 310. clawd's voice reads ~140 words a
+  minute, and the video must stay under two minutes twenty.
 - Spoken register: contractions on, short sentences, no URLs, no
   parentheticals, no hashtags, no markdown, no emoji, no stage directions.
 - Numbers the way a person says them: "seventy-nine thousand dollars", not
