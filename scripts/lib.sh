@@ -5,6 +5,11 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+# show timeline: idle cold-open, narration, idle outro. 03 (caption offset)
+# and 04 (comp timing) must agree, so the numbers live here.
+INTRO_S=2
+OUTRO_S=3
+
 log()  { printf '\033[36m[%s]\033[0m %s\n' "$(basename "$0" .sh)" "$*" >&2; }
 die()  { printf '\033[31m[%s] FATAL:\033[0m %s\n' "$(basename "$0" .sh)" "$*" >&2; exit 1; }
 

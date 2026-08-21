@@ -37,11 +37,14 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
 
 
-def main(words_json: str, out_ass: str) -> None:
+def main(words_json: str, out_ass: str, offset: float = 0.0) -> None:
     data = json.load(open(words_json))
     words = data.get("words") or []
     if not words:
         sys.exit("build_captions: no words[] in " + words_json)
+    if offset:
+        words = [{**w, "start": w["start"] + offset, "end": w["end"] + offset}
+                 for w in words]
 
     chunks, cur = [], []
     for w in words:
@@ -74,6 +77,7 @@ def main(words_json: str, out_ass: str) -> None:
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
-        sys.exit("usage: build_captions.py words.json out.ass")
-    main(sys.argv[1], sys.argv[2])
+    if len(sys.argv) not in (3, 4):
+        sys.exit("usage: build_captions.py words.json out.ass [offset_seconds]")
+    main(sys.argv[1], sys.argv[2],
+         float(sys.argv[3]) if len(sys.argv) == 4 else 0.0)

@@ -16,8 +16,22 @@ lightly amused. Conversational pace around 155 words per minute. Small pauses \
 between stories. Never salesy or hypey.}"
 
 [ -s "$IN" ] || die "no script at $IN — run 01-script.sh first"
-need_openai_key
 skip_if_fresh "$OUT" "$IN" && exit 0
+
+load_env
+if [ -z "${OPENAI_API_KEY:-}" ]; then
+  # keyless fallback: macOS `say` (Samantha). Loud on purpose — the real show
+  # voice is OpenAI TTS; this exists so the pipeline stays testable without it.
+  command -v say >/dev/null || die "no OPENAI_API_KEY and no \`say\` — cannot TTS"
+  log "WARNING: no OPENAI_API_KEY — falling back to macOS say (Samantha)"
+  say -v "${SAY_VOICE:-Samantha}" -o "$WORK/voice.aiff" -f "$IN"
+  check_ffmpeg
+  "$FFMPEG" -hide_banner -loglevel error -y -i "$WORK/voice.aiff" -c:a libmp3lame -q:a 3 "$OUT"
+  rm -f "$WORK/voice.aiff"
+  DUR="$(media_duration "$OUT")"
+  log "wrote $OUT (${DUR%.*}s, say fallback)"
+  exit 0
+fi
 
 log "tts: model=$TTS_MODEL voice=$VOICE"
 BODY="$(python3 - "$IN" "$TTS_MODEL" "$VOICE" "$TTS_INSTRUCTIONS" <<'EOF'

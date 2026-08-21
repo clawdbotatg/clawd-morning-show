@@ -17,10 +17,18 @@ renderer over data [`clawd-morning-update`](https://github.com/clawdbotatg/clawd
 already produces daily:
 
 ```
-digest.md ──► 1. script pass ──► 2. TTS ──► 3. visuals ──► 4. ffmpeg mux ──► 5. tweet
-              (claude -p)        (audio)    (headless      (mp4 ≤2:20)       (clawd-twitter)
-                                            chromium)
+digest.md ──► 1. script pass ──► 2. TTS ──► 3. clawd avatar ──► 4. ffmpeg mux ──► 5. tweet
+              (claude -p)        (audio)       comp             (mp4 ≤2:20)       (clawd-twitter)
+                                            (idle/chatting loops
+                                             + captions, pure ffmpeg)
 ```
+
+The on-screen clawd is the same avatar the Zoom/OBS rig shows
+([clawd-video-chat](https://github.com/clawdbotatg/clawd-video-chat)'s
+`clawdassets/` idle/chatting clips, vendored in `assets/`) — one clawd
+everywhere. Note the clips ship on pure **black**, not chroma-green, so the
+comp overlays them on a black card instead of keying (keying black would eat
+the tux).
 
 Full plan: **[DESIGN.md](DESIGN.md)**.
 
@@ -35,19 +43,23 @@ cp .env.example .env         # put OPENAI_API_KEY in it
 
 Stages (each idempotent — skips fresh outputs, `FORCE=1` re-runs):
 `01-script.sh` digest → ~320 spoken words via `claude -p` + `prompts/host.md` ·
-`02-tts.sh` OpenAI `gpt-4o-mini-tts` · `03-captions.sh` whisper word timestamps
-→ `.ass` captions · `04-render.sh` branded frame + waveform + burned captions
-→ H.264 mp4. Needs an ffmpeg with libass/freetype (`brew install ffmpeg-full`
-— the plain brew bottle dropped them). Posting is deliberately not wired yet.
+`02-tts.sh` OpenAI `gpt-4o-mini-tts` (no key → loud macOS `say` fallback) ·
+`03-captions.sh` whisper word timestamps (no key → loud uniform-timing
+fallback) → `.ass` captions · `04-render.sh` avatar comp: idle cold-open →
+seam-hidden chatting loop for the narration → idle outro, headline ticker +
+burned captions → H.264 mp4. Needs an ffmpeg with libass/freetype
+(`brew install ffmpeg-full` — the plain brew bottle dropped them). Posting is
+deliberately not wired yet.
 
 ## Status
 
 Ship order:
 
-- [x] **v0** — static branded frame + waveform + burned captions over TTS
-      audio, pure ffmpeg. Tweetable in a morning.
-- [ ] **v1** — HTML "slop computer" renderer page (terminal aesthetic,
-      lower-thirds, story cards) captured with headless Chromium.
+- [x] **v0** — clawd avatar comp (idle/chatting loops from clawd-video-chat)
+      + headline ticker + burned captions over TTS audio, pure ffmpeg.
+- [ ] **v1** — the "slop computer" set dressing AROUND the avatar (terminal
+      aesthetic, story cards, per-pause idle/chatting switching), HTML page
+      captured with headless Chromium. The avatar stays the centerpiece.
 - [ ] **v2** — real session b-roll: asciinema cast of the actual news crawl
       behind the cards.
 

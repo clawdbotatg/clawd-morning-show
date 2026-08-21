@@ -13,6 +13,10 @@ WORK="$ROOT/out/work-$SHOW_DATE"
 OUT="$ROOT/out/show-$SHOW_DATE.mp4"
 mkdir -p "$WORK"
 
+HEADLINE="$(grep -m1 '^# ' "$DIGEST" | sed 's/^# //' || true)"
+[ -n "$HEADLINE" ] || HEADLINE="the morning news, read to you"
+export HEADLINE
+
 log "show for $SHOW_DATE — digest: $DIGEST"
 "$ROOT/scripts/01-script.sh" "$DIGEST" "$WORK"
 "$ROOT/scripts/02-tts.sh" "$WORK"
@@ -20,8 +24,6 @@ log "show for $SHOW_DATE — digest: $DIGEST"
 "$ROOT/scripts/04-render.sh" "$WORK" "$OUT"
 
 # ---- suggested tweet (posting NOT wired yet — on purpose) ----
-HEADLINE="$(grep -m1 '^# ' "$DIGEST" | sed 's/^# //' || true)"
-[ -n "$HEADLINE" ] || HEADLINE="the morning news, read to you"
 DUR="$(media_duration "$OUT")"
 
 echo
