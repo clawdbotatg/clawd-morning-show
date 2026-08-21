@@ -24,11 +24,27 @@ digest.md ──► 1. script pass ──► 2. TTS ──► 3. visuals ──�
 
 Full plan: **[DESIGN.md](DESIGN.md)**.
 
+## Run it (v0)
+
+```
+cp .env.example .env         # put OPENAI_API_KEY in it
+./scripts/voice-samples.sh   # once: listen, pick the brand voice (VOICE= in .env)
+./scripts/make-show.sh samples/digest.md
+# -> out/show-YYYY-MM-DD.mp4 + suggested tweet text on stdout
+```
+
+Stages (each idempotent — skips fresh outputs, `FORCE=1` re-runs):
+`01-script.sh` digest → ~320 spoken words via `claude -p` + `prompts/host.md` ·
+`02-tts.sh` OpenAI `gpt-4o-mini-tts` · `03-captions.sh` whisper word timestamps
+→ `.ass` captions · `04-render.sh` branded frame + waveform + burned captions
+→ H.264 mp4. Needs an ffmpeg with libass/freetype (`brew install ffmpeg-full`
+— the plain brew bottle dropped them). Posting is deliberately not wired yet.
+
 ## Status
 
-Design phase. Ship order:
+Ship order:
 
-- [ ] **v0** — static branded frame + waveform + burned captions over TTS
+- [x] **v0** — static branded frame + waveform + burned captions over TTS
       audio, pure ffmpeg. Tweetable in a morning.
 - [ ] **v1** — HTML "slop computer" renderer page (terminal aesthetic,
       lower-thirds, story cards) captured with headless Chromium.
