@@ -98,7 +98,11 @@ ${CARD_CHAIN}\
 [1:a]adelay=${DELAY_MS}:all=1,apad[aud]"
 } > "$WORK/show.filter"
 
-log "render: $OUT (${TOTAL%.*}s total)"
+# ffmpeg 8 removed -filter_complex_script; >=7 reads any option from a file via -/opt
+FF_MAJOR="$("$FFMPEG" -version | sed -nE '1s/^ffmpeg version n?([0-9]+).*/\1/p')"
+if [ "${FF_MAJOR:-0}" -ge 7 ]; then FILTER_OPT=(-/filter_complex show.filter); else FILTER_OPT=(-filter_complex_script show.filter); fi
+
+log "render: $OUT (${TOTAL%.*}s total, ffmpeg ${FF_MAJOR:-?})"
 mkdir -p "$(dirname "$OUT")"
 case "$OUT" in /*) ABS_OUT="$OUT";; *) ABS_OUT="$PWD/$OUT";; esac
 
@@ -107,7 +111,7 @@ case "$OUT" in /*) ABS_OUT="$OUT";; *) ABS_OUT="$PWD/$OUT";; esac
   -i voice.norm.wav \
   -stream_loop -1 -i "$IDLE1" -stream_loop -1 -i "$IDLE2" -stream_loop -1 -i "$CHAT" \
   "${CARD_INPUTS[@]}" \
-  -filter_complex_script show.filter \
+  "${FILTER_OPT[@]}" \
   -map "[v]" -map "[aud]" -t "$TOTAL" -r 24 \
   -c:v libx264 -preset medium -crf 21 -c:a aac -b:a 128k \
   -movflags +faststart "$ABS_OUT" )

@@ -24,6 +24,7 @@ export HEADLINE
 "$ROOT/scripts/05-render.sh" "$WORK" "$OUT"
 
 # ---- suggested tweet (posting NOT wired yet — on purpose) ----
+check_ffmpeg   # the summary probe must use the same ffprobe the stages did, not whatever is on PATH
 DUR="$(media_duration "$OUT")"
 
 echo

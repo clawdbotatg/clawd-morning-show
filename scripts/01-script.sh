@@ -16,7 +16,8 @@ STORIES="$WORK/stories.json"
 command -v claude >/dev/null || die "claude CLI not on PATH"
 mkdir -p "$WORK"
 python3 "$ROOT/scripts/digest_parse.py" "$DIGEST" "$STORIES"
-skip_if_fresh "$OUT" "$DIGEST" && skip_if_fresh "$TXT" "$OUT" && exit 0
+# script.json + script.txt land in the same second, so never `-nt` one against the other
+[ -s "$TXT" ] && skip_if_fresh "$OUT" "$DIGEST" && exit 0
 
 scrub_claude_env
 

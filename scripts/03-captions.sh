@@ -33,7 +33,8 @@ json.dump({"words": [{"word": w, "start": round(i*step, 3),
 PY
 fi
 
-if skip_if_fresh "$PLAN" "$WORDS" && skip_if_fresh "$PLAN" "$RIG" && skip_if_fresh "$ASS" "$PLAN"; then exit 0; fi
+# plan.json + captions.ass land in the same second — never `-nt` one against the other
+if [ -s "$ASS" ] && skip_if_fresh "$PLAN" "$WORDS" && skip_if_fresh "$PLAN" "$RIG"; then exit 0; fi
 
 A="$ROOT/assets"
 [ -s "$WORK/script.json" ] || die "no script.json — run 01-script.sh first"

@@ -22,7 +22,9 @@ function findChromium() {
   for (const prefix of ["chromium_headless_shell-", "chromium-"]) {
     const dirs = readdirSync(cache).filter(d => d.startsWith(prefix)).sort().reverse();
     for (const d of dirs) {
-      for (const rel of ["chrome-mac/headless_shell", "chrome-mac-arm64/headless_shell",
+      // playwright ≥1.5x ships the shell as chrome-headless-shell-mac[-arm64]/chrome-headless-shell
+      for (const rel of ["chrome-headless-shell-mac-arm64/chrome-headless-shell", "chrome-headless-shell-mac/chrome-headless-shell",
+                         "chrome-mac/headless_shell", "chrome-mac-arm64/headless_shell",
                          "chrome-mac/Chromium.app/Contents/MacOS/Chromium", "chrome-mac-arm64/Chromium.app/Contents/MacOS/Chromium"]) {
         const p = path.join(cache, d, rel); if (existsSync(p)) return p;
       }
