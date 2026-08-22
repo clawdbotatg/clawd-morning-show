@@ -46,7 +46,8 @@ if skip_if_fresh "$OUT" "$ASS" && skip_if_fresh "$OUT" "$AUDIO"; then exit 0; fi
 # ---- avatar plan: produced by stage 3 running the rig's own clawdVid code ----
 [ -s "$WORK/plan.json" ] && [ -s "$WORK/avatar.filter" ] || die "no avatar plan — run 03-captions.sh first"
 TOTAL="$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['total'])" "$WORK/plan.json")"
-DELAY_MS=$((INTRO_S * 1000))
+# audio starts MOUTH_LAG_S after the cut to chatting (see lib.sh)
+DELAY_MS="$(awk -v i="$INTRO_S" -v l="$MOUTH_LAG_S" 'BEGIN{printf "%d", (i+l)*1000}')"
 
 # bottom ticker: headline + site (from make-show; falls back to the tagline).
 # lives at the very bottom edge so it never crosses the avatar's face.

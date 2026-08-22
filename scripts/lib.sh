@@ -9,6 +9,10 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # and 04 (comp timing) must agree, so the numbers live here.
 INTRO_S=2
 OUTRO_S=3
+# chatting_1.mp4's mouth doesn't move until ~0.62s in (measured: first frame
+# with real motion vs frame 0 is frame 15 @24fps). The cut to chatting leads
+# the audio by this much so he isn't talking with a closed mouth.
+MOUTH_LAG_S=0.6
 
 log()  { printf '\033[36m[%s]\033[0m %s\n' "$(basename "$0" .sh)" "$*" >&2; }
 die()  { printf '\033[31m[%s] FATAL:\033[0m %s\n' "$(basename "$0" .sh)" "$*" >&2; exit 1; }

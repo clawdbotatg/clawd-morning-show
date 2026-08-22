@@ -36,7 +36,7 @@ fi
 if skip_if_fresh "$PLAN" "$WORDS" && skip_if_fresh "$PLAN" "$RIG" && skip_if_fresh "$ASS" "$PLAN"; then exit 0; fi
 
 A="$ROOT/assets"
-node "$ROOT/scripts/plan_avatar.mjs" "$RIG" "$WORDS" "$WORK/script.txt" "$INTRO_S" "$OUTRO_S" \
+node "$ROOT/scripts/plan_avatar.mjs" "$RIG" "$WORDS" "$WORK/script.txt" "$INTRO_S" "$OUTRO_S" "$MOUTH_LAG_S" \
   "$(media_duration "$AUDIO")" \
   "$(media_duration "$A/idle_1.mp4")" "$(media_duration "$A/idle_2.mp4")" "$(media_duration "$A/chatting_1.mp4")" \
   "${PLAN_SEED:-${SHOW_DATE:-$(date +%F)}}" "$PLAN" "$WORK/avatar.filter"

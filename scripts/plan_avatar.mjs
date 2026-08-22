@@ -9,14 +9,18 @@
 // (sentence regexes + max chunk) is lifted from the same file and run with
 // the same loop. Every visible cut (the overlay "snap") is recorded.
 //
-// usage: plan_avatar.mjs rig.html words.json script.txt intro_s outro_s audio_s \
+// usage: plan_avatar.mjs rig.html words.json script.txt intro_s outro_s mouth_lag_s audio_s \
 //          d_idle1 d_idle2 d_chat seed plan.json avatar.filter
+// mouth_lag_s: the chatting clip's mouth starts moving that long after its
+// first frame, so every chatting() cut is fired that much BEFORE the audio
+// it belongs to (audio itself is delayed by intro+lag in the render).
 import fs from "node:fs";
 
 const a = process.argv.slice(2);
-if (a.length !== 12) { console.error("usage: see header"); process.exit(2); }
-const [rigHtml, wordsJson, scriptTxt, introS, outroS, audioS, dI1, dI2, dCh, seed, outPlan, outFilter] = a;
-const INTRO = +introS, OUTRO = +outroS, AUDIO = +audioS;
+if (a.length !== 13) { console.error("usage: see header"); process.exit(2); }
+const [rigHtml, wordsJson, scriptTxt, introS, outroS, lagS, audioS, dI1, dI2, dCh, seed, outPlan, outFilter] = a;
+const INTRO = +introS, OUTRO = +outroS, LAG = +lagS, AUDIO = +audioS;
+const AUDIO_AT = INTRO + LAG;   // when the voice actually starts in the show
 const DUR = { "clawdassets/idle_1.mp4": +dI1, "clawdassets/idle_2.mp4": +dI2, "clawdassets/chatting_1.mp4": +dCh };
 const html = fs.readFileSync(rigHtml, "utf8");
 
@@ -65,11 +69,11 @@ let wi = 0;
 for (const text of chunks) {
   const n = text.split(/\s+/).length;
   if (wi + n > words.length) throw new Error(`chunk/word mismatch at chunk ${chunkTimes.length}`);
-  chunkTimes.push({ text, start: words[wi].start + INTRO });
+  chunkTimes.push({ text, start: words[wi].start + AUDIO_AT });   // when this chunk is heard
   wi += n;
 }
 if (wi !== words.length) throw new Error(`chunk words ${wi} != alignment words ${words.length}`);
-const speechEnd = INTRO + AUDIO;
+const speechEnd = AUDIO_AT + AUDIO;
 const TOTAL = speechEnd + OUTRO;
 
 // ── 3. discrete-event clock + seeded random ─────────────────────────────────
@@ -139,7 +143,7 @@ const clawdVid = new Function("document", "setTimeout", "clearTimeout", "request
   { log() {}, warn() {}, error() {} });
 
 // ── 5. feed it the show's events, exactly as the live page would ────────────
-for (const c of chunkTimes) schedule(c.start, () => clawdVid.chatting(script));   // audio.onplay per chunk
+for (const c of chunkTimes) schedule(c.start - LAG, () => clawdVid.chatting(script));   // audio.onplay per chunk, led by the mouth lag
 schedule(speechEnd, () => schedule(now + 0.25, () => clawdVid.idle(true)));       // drain -> idle after 250ms
 runUntil(TOTAL);
 
