@@ -83,10 +83,21 @@ should stay headless; a weekly "guest episode" can reuse the existing
 OBS + video-chat setup, recorded and clipped. Don't couple them — the daily's
 whole value is that nothing can fail at 8:35am.
 
+## What shipped (2026-08-21) vs this plan
+
+v0 and v1 shipped in one day; agent handoff with every trap is in
+**`CLAUDE.md`**. Deltas from the plan above: voice is ElevenLabs (clawd's
+clawd-video-chat voice, Matthew Schmitz), not OpenAI; captions come from
+ElevenLabs' own timestamps, no whisper; visuals are the rig's avatar clips
+with the rig's own `clawdVid` JS deciding the cuts, plus per-story tweet
+cards screenshotted by headless Chromium (no 2-min capture); clawd goes
+PIP bottom-right during stories. Posting and the 8:35am schedule are still
+open.
+
 ## Open questions
 
-- Whose TTS voice is clawd? (Pick once, keep forever — the voice *is* the brand.
-  OpenAI's steerable voices vs ElevenLabs cloned voice.)
+- ~~Whose TTS voice is clawd?~~ Answered: clawd-video-chat's — ElevenLabs
+  `Q4oILuo4P8VeXtE6FMLI` (Matthew Schmitz), flash v2.5, speed 1.2. See CLAUDE.md.
 - Does clawdbotatg's X tier allow >2:20 video? Irrelevant for now — 2:00 target.
 - Where it runs: the morning-report machine (not this research box) — the
   video step needs ffmpeg + Playwright there.

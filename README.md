@@ -30,7 +30,8 @@ everywhere. Note the clips ship on pure **black**, not chroma-green, so the
 comp overlays them on a black card instead of keying (keying black would eat
 the tux).
 
-Full plan: **[DESIGN.md](DESIGN.md)**.
+Full plan: **[DESIGN.md](DESIGN.md)**. Working on it as an agent: **[CLAUDE.md](CLAUDE.md)**
+(architecture, every trap hit building it, how to verify, what's not done).
 
 ## Run it (v0)
 
