@@ -45,8 +45,11 @@ Stages (each idempotent — skips fresh outputs, `FORCE=1` re-runs):
 `02-tts.sh` ElevenLabs `with-timestamps` — **clawd's existing clawd-video-chat
 voice** (`ELEVENLABS_VOICE_ID`), audio + word timings in one call (no key →
 loud macOS `say` fallback) · `03-captions.sh` timings → burned `.ass` captions ·
-`04-render.sh` avatar comp: idle cold-open → seam-hidden chatting loop for the
-narration → idle outro, headline ticker + burned captions → H.264 mp4. Needs
+`04-render.sh` avatar comp driven by a precomputed copy of clawd-video-chat's
+`clawdVid` state machine (`build_avatar_plan.py`: chatting once per spoken
+sentence, random idles when a clip ends, idle after speech, hard cuts — the
+rig's behaviour, just known in advance) + headline ticker + sentence captions
+in the rig's `#speechCaption` style → H.264 mp4. Needs
 an ffmpeg with libass/freetype (`brew install ffmpeg-full` — the plain brew
 bottle dropped them). Posting is deliberately not wired yet.
 
@@ -54,8 +57,9 @@ bottle dropped them). Posting is deliberately not wired yet.
 
 Ship order:
 
-- [x] **v0** — clawd avatar comp (idle/chatting loops from clawd-video-chat)
-      + headline ticker + burned captions over TTS audio, pure ffmpeg.
+- [x] **v0** — clawd avatar comp (clawd-video-chat's clips AND its state
+      machine, replayed) + headline ticker + burned captions over clawd's
+      ElevenLabs voice, pure ffmpeg.
 - [ ] **v1** — the "slop computer" set dressing AROUND the avatar (terminal
       aesthetic, story cards, per-pause idle/chatting switching), HTML page
       captured with headless Chromium. The avatar stays the centerpiece.
