@@ -9,16 +9,19 @@
 // (sentence regexes + max chunk) is lifted from the same file and run with
 // the same loop. Every visible cut (the overlay "snap") is recorded.
 //
-// usage: plan_avatar.mjs rig.html words.json script.txt intro_s outro_s mouth_lag_s audio_s \
+// usage: plan_avatar.mjs rig.html words.json script.txt script.json intro_s outro_s mouth_lag_s audio_s \
 //          d_idle1 d_idle2 d_chat seed plan.json avatar.filter
+// script.json (stage 1) tags the text as intro / story×N / outro segments; their
+// word spans map to times the same way chunks do -> plan.layout: the PIP window
+// (first story start .. outro start) and each story's on-screen span.
 // mouth_lag_s: the chatting clip's mouth starts moving that long after its
 // first frame, so every chatting() cut is fired that much BEFORE the audio
 // it belongs to (audio itself is delayed by intro+lag in the render).
 import fs from "node:fs";
 
 const a = process.argv.slice(2);
-if (a.length !== 13) { console.error("usage: see header"); process.exit(2); }
-const [rigHtml, wordsJson, scriptTxt, introS, outroS, lagS, audioS, dI1, dI2, dCh, seed, outPlan, outFilter] = a;
+if (a.length !== 14) { console.error("usage: see header"); process.exit(2); }
+const [rigHtml, wordsJson, scriptTxt, scriptJson, introS, outroS, lagS, audioS, dI1, dI2, dCh, seed, outPlan, outFilter] = a;
 const INTRO = +introS, OUTRO = +outroS, LAG = +lagS, AUDIO = +audioS;
 const AUDIO_AT = INTRO + LAG;   // when the voice actually starts in the show
 const DUR = { "clawdassets/idle_1.mp4": +dI1, "clawdassets/idle_2.mp4": +dI2, "clawdassets/chatting_1.mp4": +dCh };
@@ -75,6 +78,29 @@ for (const text of chunks) {
 if (wi !== words.length) throw new Error(`chunk words ${wi} != alignment words ${words.length}`);
 const speechEnd = AUDIO_AT + AUDIO;
 const TOTAL = speechEnd + OUTRO;
+
+// ── 2b. segment layout from script.json (word spans -> times) ───────────────
+const segments = JSON.parse(fs.readFileSync(scriptJson, "utf8")).segments;
+const segSpans = [];
+{
+  let w = 0;
+  for (const sg of segments) {
+    const n = sg.text.trim().split(/\s+/).length;
+    if (w + n > words.length) throw new Error("script.json words exceed alignment");
+    segSpans.push({ ...sg, start: words[w].start + AUDIO_AT, end: words[w + n - 1].end + AUDIO_AT });
+    w += n;
+  }
+  if (w !== words.length) throw new Error(`script.json words ${w} != alignment ${words.length}`);
+}
+const storySpans = segSpans.filter(x => x.kind === "story");
+const outroSeg = segSpans.find(x => x.kind === "outro");
+// a story holds the screen until the next story starts; the last until the outro
+const layoutStories = storySpans.map((x, i) => ({
+  index: i, theme: x.theme, card: `cards/story-${i}.png`,
+  start: +x.start.toFixed(3),
+  end: +(i + 1 < storySpans.length ? storySpans[i + 1].start : (outroSeg ? outroSeg.start : speechEnd)).toFixed(3),
+}));
+const pip = layoutStories.length ? { start: layoutStories[0].start, end: layoutStories[layoutStories.length - 1].end } : null;
 
 // ── 3. discrete-event clock + seeded random ─────────────────────────────────
 let now = 0, seq = 0;
@@ -166,8 +192,10 @@ lines.push(segs.map((_, k) => `[seg${k}]`).join("") + `concat=n=${segs.length}:v
 fs.writeFileSync(outFilter, lines.join(";\n"));
 
 const captions = chunkTimes.map((c, i) => ({ text: c.text, start: +c.start.toFixed(3),
-  end: +(i + 1 < chunkTimes.length ? chunkTimes[i + 1].start : speechEnd).toFixed(3) }));
+  end: +(i + 1 < chunkTimes.length ? chunkTimes[i + 1].start : speechEnd).toFixed(3),
+  mode: pip && c.start >= pip.start - 1e-3 && c.start < pip.end - 1e-3 ? "pip" : "full" }));
 fs.writeFileSync(outPlan, JSON.stringify({ total: +TOTAL.toFixed(3), speechEnd, rig: fs.existsSync(rigHtml.replace(/index\.html$/, "SOURCE")) ? fs.readFileSync(rigHtml.replace(/index\.html$/, "SOURCE"), "utf8").trim() : null,
-  captions, segments: segs }, null, 1));
+  layout: { pip, stories: layoutStories }, captions, segments: segs }, null, 1));
 const chat = segs.filter(s => s.clip === "chatting_1").reduce((x, s) => x + s.dur, 0);
-console.error(`rig plan: ${captions.length} chunks, ${segs.length} segments, chatting ${chat.toFixed(0)}s of ${TOTAL.toFixed(0)}s`);
+console.error(`rig plan: ${captions.length} chunks, ${segs.length} segments, chatting ${chat.toFixed(0)}s of ${TOTAL.toFixed(0)}s; ` +
+  (pip ? `${layoutStories.length} stories on stage, PIP ${pip.start}s–${pip.end}s` : "no stories"));

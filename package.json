@@ -1,0 +1,9 @@
+{
+  "name": "clawd-morning-show",
+  "private": true,
+  "type": "module",
+  "description": "daily 2-min clawd news video — see README",
+  "dependencies": {
+    "playwright-core": "^1.49.0"
+  }
+}

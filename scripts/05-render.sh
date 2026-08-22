@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# stage 4: clawd avatar comp — background card + keyed-in avatar + lower-third
-# + burned captions + audio -> mp4
+# stage 5: the comp. clawd full-frame for the intro/outro; during the stories
+# he shrinks to a bottom-right PIP and each story's tweet card (stage 4)
+# takes the stage on the left, swapped on the story's start time
+# (plan.layout from stage 3). Hard cuts throughout, like the rig.
 #
 # timeline: INTRO_S idle cold-open · narration · OUTRO_S idle outro, with the
 # clip sequence decided by clawd-video-chat's OWN clawdVid code (stage 3,
@@ -10,11 +12,11 @@
 # the show background is pure black and the square clip overlays seamlessly.
 # Keying black would eat clawd's tux; don't "fix" this back to colorkey.
 #
-# usage: 04-render.sh <workdir> <out.mp4>   (HEADLINE env -> lower-third)
+# usage: 05-render.sh <workdir> <out.mp4>   (HEADLINE env -> bottom ticker)
 . "$(dirname "$0")/lib.sh"
 
-WORK="${1:?usage: 04-render.sh <workdir> <out.mp4>}"
-OUT="${2:?usage: 04-render.sh <workdir> <out.mp4>}"
+WORK="${1:?usage: 05-render.sh <workdir> <out.mp4>}"
+OUT="${2:?usage: 05-render.sh <workdir> <out.mp4>}"
 AUDIO="$WORK/voice.mp3"
 ASS="$WORK/captions.ass"
 FRAME="$WORK/frame.png"
@@ -63,11 +65,36 @@ DELAY_MS="$(awk -v i="$INTRO_S" -v l="$MOUTH_LAG_S" 'BEGIN{printf "%d", (i+l)*10
 TAGLINE="reading the timeline so you don't have to"
 printf '%s · gmsers.com' "${HEADLINE:-$TAGLINE}" > "$WORK/lower3.txt"
 
-# full graph: avatar chain from the plan, then comp + ticker + captions + audio
+# ---- layout: PIP window + story cards (from plan.json) ----
+# stage card 860x420 at (40,140); PIP avatar 300px at (940,360); full avatar 560px centered.
+read -r PIP_S PIP_E NCARDS <<<"$(python3 -c "
+import json,sys; L=json.load(open(sys.argv[1]))['layout']; p=L['pip']
+print(p['start'] if p else -1, p['end'] if p else -1, len(L['stories']))" "$WORK/plan.json")"
+CARD_INPUTS=(); CARD_CHAIN=""
+if [ "$NCARDS" -gt 0 ]; then
+  for i in $(seq 0 $((NCARDS-1))); do
+    [ -s "$WORK/cards/story-$i.png" ] || die "missing card $WORK/cards/story-$i.png — run 04-cards.sh"
+    CARD_INPUTS+=(-framerate 24 -loop 1 -i "cards/story-$i.png")
+  done
+  CARD_CHAIN="$(python3 -c "
+import json,sys; L=json.load(open(sys.argv[1]))['layout']
+prev='c1'; out=[]
+for i,s in enumerate(L['stories']):
+    nxt=f'k{i}'; out.append(f\"[{prev}][{5+i}:v]overlay=40:140:enable='between(t,{s['start']},{s['end']})'[{nxt}]\"); prev=nxt
+print(';'.join(out)+';' if out else '', end='')" "$WORK/plan.json")"
+  LAST_LABEL="k$((NCARDS-1))"
+else
+  LAST_LABEL="c1"
+fi
+PIP_ON="between(t,$PIP_S,$PIP_E)"
+
+# full graph: avatar chain from the plan, then full/PIP avatar, cards, ticker, captions, audio
 { cat "$WORK/avatar.filter"; printf ';\n'
-  printf '%s\n' "[avatar]scale=560:560[av];\
-[0:v][av]overlay=(W-w)/2:H-h[comp];\
-[comp]drawtext=fontfile='$FONT':textfile=lower3.txt:fontcolor=0x99DDAA:fontsize=20:x=(w-text_w)/2:y=684:box=1:boxcolor=0x081008@0.85:boxborderw=12,subtitles=captions.ass,format=yuv420p[v];\
+  printf '%s\n' "[avatar]split[avA][avB];[avA]scale=560:560[full];[avB]scale=300:300[pip];\
+[0:v][full]overlay=360:160:enable='not($PIP_ON)'[c0];\
+[c0][pip]overlay=940:360:enable='$PIP_ON'[c1];\
+${CARD_CHAIN}\
+[$LAST_LABEL]drawtext=fontfile='$FONT':textfile=lower3.txt:fontcolor=0x99DDAA:fontsize=20:x=(w-text_w)/2:y=684:box=1:boxcolor=0x081008@0.85:boxborderw=12,subtitles=captions.ass,format=yuv420p[v];\
 [1:a]adelay=${DELAY_MS}:all=1,apad[aud]"
 } > "$WORK/show.filter"
 
@@ -79,6 +106,7 @@ case "$OUT" in /*) ABS_OUT="$OUT";; *) ABS_OUT="$PWD/$OUT";; esac
   -framerate 24 -loop 1 -i frame.png \
   -i voice.norm.wav \
   -stream_loop -1 -i "$IDLE1" -stream_loop -1 -i "$IDLE2" -stream_loop -1 -i "$CHAT" \
+  "${CARD_INPUTS[@]}" \
   -filter_complex_script show.filter \
   -map "[v]" -map "[aud]" -t "$TOTAL" -r 24 \
   -c:v libx264 -preset medium -crf 21 -c:a aac -b:a 128k \

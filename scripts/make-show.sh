@@ -13,15 +13,15 @@ WORK="$ROOT/out/work-$SHOW_DATE"
 OUT="$ROOT/out/show-$SHOW_DATE.mp4"
 mkdir -p "$WORK"
 
-HEADLINE="$(grep -m1 '^# ' "$DIGEST" | sed 's/^# //' || true)"
-[ -n "$HEADLINE" ] || HEADLINE="the morning news, read to you"
-export HEADLINE
-
 log "show for $SHOW_DATE — digest: $DIGEST"
 "$ROOT/scripts/01-script.sh" "$DIGEST" "$WORK"
+HEADLINE="$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['headline'])" "$WORK/stories.json")"
+[ -n "$HEADLINE" ] || HEADLINE="the morning news, read to you"
+export HEADLINE
 "$ROOT/scripts/02-tts.sh" "$WORK"
 "$ROOT/scripts/03-captions.sh" "$WORK"
-"$ROOT/scripts/04-render.sh" "$WORK" "$OUT"
+"$ROOT/scripts/04-cards.sh" "$WORK"
+"$ROOT/scripts/05-render.sh" "$WORK" "$OUT"
 
 # ---- suggested tweet (posting NOT wired yet — on purpose) ----
 DUR="$(media_duration "$OUT")"

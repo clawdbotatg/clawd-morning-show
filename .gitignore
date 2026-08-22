@@ -4,3 +4,4 @@ out/
 *.mp4
 __pycache__/
 !assets/*.mp4
+node_modules/
