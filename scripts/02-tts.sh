@@ -28,16 +28,21 @@ if [ -z "${ELEVENLABS_API_KEY:-}" ]; then
   exit 0
 fi
 
-# Brian = clawd, the clawd-video-chat default. The harness env leaks a
-# different ELEVENLABS_VOICE_ID (Samantha) into agent shells — .env wins.
-VOICE_ID="${ELEVENLABS_VOICE_ID:-nPczCjzI2devNBz1zQrb}"
+# clawd = Matthew Schmitz (Q4oILuo4P8VeXtE6FMLI), per clawd-video-chat's .env
+# on leftclaw. The harness env leaks a different ELEVENLABS_VOICE_ID (Samantha)
+# into agent shells — .env wins, and this default is clawd, not the leak.
+VOICE_ID="${ELEVENLABS_VOICE_ID:-Q4oILuo4P8VeXtE6FMLI}"
 MODEL="${ELEVEN_MODEL:-eleven_flash_v2_5}"   # same model as clawd-video-chat
 
 log "tts: elevenlabs voice=$VOICE_ID model=$MODEL"
 BODY="$(python3 - "$IN" "$MODEL" <<'EOF'
 import json, sys
+# voice_settings copied from clawd-video-chat _tts_elevenlabs — speed 1.2 is
+# what makes the slow drawl conversational without losing the gravel.
 print(json.dumps({"text": open(sys.argv[1]).read().strip(),
-                  "model_id": sys.argv[2]}))
+                  "model_id": sys.argv[2],
+                  "voice_settings": {"stability": 0.65, "similarity_boost": 0.5,
+                                     "use_speaker_boost": True, "speed": 1.2}}))
 EOF
 )"
 
