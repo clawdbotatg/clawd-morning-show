@@ -2,9 +2,11 @@
 # stage 4: clawd avatar comp — background card + keyed-in avatar + lower-third
 # + burned captions + audio -> mp4
 #
-# timeline: INTRO_S idle cold-open · narration driven by the clawd-video-chat
-# avatar state machine (build_avatar_plan.py) · OUTRO_S idle outro. The avatar clips (assets/, from clawd-video-chat's
-# clawdassets/) ship on PURE BLACK — not green — so there is no chroma key:
+# timeline: INTRO_S idle cold-open · narration · OUTRO_S idle outro, with the
+# clip sequence decided by clawd-video-chat's OWN clawdVid code (stage 3,
+# plan_avatar.mjs). Inputs are -stream_loop'd because the rig sets <video
+# loop> on chatting_1 / idle_2 (aliased into LOOPING_SRCS). The avatar clips
+# (assets/, from clawd-video-chat's clawdassets/) ship on PURE BLACK — not green — so there is no chroma key:
 # the show background is pure black and the square clip overlays seamlessly.
 # Keying black would eat clawd's tux; don't "fix" this back to colorkey.
 #
@@ -41,13 +43,9 @@ fi
 
 if skip_if_fresh "$OUT" "$ASS" && skip_if_fresh "$OUT" "$AUDIO"; then exit 0; fi
 
-# ---- avatar plan: the rig's clawdVid state machine, precomputed ----
-# (hard cuts, chatting once per sentence, random idles, idle after speech)
-PLAN_SEED="${PLAN_SEED:-$SHOW_DATE}"
-python3 "$ROOT/scripts/build_avatar_plan.py" "$WORK/words.json" "$INTRO_S" "$OUTRO_S" \
-  "$(media_duration "$IDLE1")" "$(media_duration "$IDLE2")" "$(media_duration "$CHAT")" \
-  "$PLAN_SEED" "$WORK/avatar.filter" "$WORK/segments.json"
-TOTAL="$(python3 -c "import json,sys; print(round(json.load(open(sys.argv[1]))['total'],3))" "$WORK/segments.json")"
+# ---- avatar plan: produced by stage 3 running the rig's own clawdVid code ----
+[ -s "$WORK/plan.json" ] && [ -s "$WORK/avatar.filter" ] || die "no avatar plan — run 03-captions.sh first"
+TOTAL="$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['total'])" "$WORK/plan.json")"
 DELAY_MS=$((INTRO_S * 1000))
 
 # bottom ticker: headline + site (from make-show; falls back to the tagline).
@@ -70,7 +68,7 @@ case "$OUT" in /*) ABS_OUT="$OUT";; *) ABS_OUT="$PWD/$OUT";; esac
 ( cd "$WORK" && "$FFMPEG" -hide_banner -loglevel error -y \
   -framerate 24 -loop 1 -i frame.png \
   -i voice.mp3 \
-  -i "$IDLE1" -i "$IDLE2" -i "$CHAT" \
+  -stream_loop -1 -i "$IDLE1" -stream_loop -1 -i "$IDLE2" -stream_loop -1 -i "$CHAT" \
   -filter_complex_script show.filter \
   -map "[v]" -map "[aud]" -t "$TOTAL" -r 24 \
   -c:v libx264 -preset medium -crf 21 -c:a aac -b:a 128k \

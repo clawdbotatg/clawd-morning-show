@@ -45,11 +45,16 @@ Stages (each idempotent — skips fresh outputs, `FORCE=1` re-runs):
 `02-tts.sh` ElevenLabs `with-timestamps` — **clawd's existing clawd-video-chat
 voice** (`ELEVENLABS_VOICE_ID`), audio + word timings in one call (no key →
 loud macOS `say` fallback) · `03-captions.sh` timings → burned `.ass` captions ·
-`04-render.sh` avatar comp driven by a precomputed copy of clawd-video-chat's
-`clawdVid` state machine (`build_avatar_plan.py`: chatting once per spoken
-sentence, random idles when a clip ends, idle after speech, hard cuts — the
-rig's behaviour, just known in advance) + headline ticker + sentence captions
-in the rig's `#speechCaption` style → H.264 mp4. Needs
+`03-captions.sh` also runs **clawd-video-chat's own avatar code**
+(`plan_avatar.mjs` cuts the `clawdVid` state machine + TTS chunking out of the
+vendored `assets/rig/index.html` and executes it in node against fake
+`<video>`s with the real clip durations, feeding it the same events the live
+page gets) → which clip shows when, plus the chunk captions in the rig's
+`#speechCaption` style · `04-render.sh` comp + headline ticker + burned
+captions → H.264 mp4. `scripts/fetch-rig.sh` re-vendors the rig; nothing here
+reimplements it. (Running the real code found that the rig hard-loops
+`chatting_1` for the whole speech — every clip variant aliases to the same
+three files, so `chatting_1` is also `BUILDING`, which loops.) Needs
 an ffmpeg with libass/freetype (`brew install ffmpeg-full` — the plain brew
 bottle dropped them). Posting is deliberately not wired yet.
 
@@ -57,9 +62,9 @@ bottle dropped them). Posting is deliberately not wired yet.
 
 Ship order:
 
-- [x] **v0** — clawd avatar comp (clawd-video-chat's clips AND its state
-      machine, replayed) + headline ticker + burned captions over clawd's
-      ElevenLabs voice, pure ffmpeg.
+- [x] **v0** — clawd avatar comp (clawd-video-chat's clips, with its own
+      avatar code deciding the cuts) + headline ticker + burned captions over
+      clawd's ElevenLabs voice, pure ffmpeg.
 - [ ] **v1** — the "slop computer" set dressing AROUND the avatar (terminal
       aesthetic, story cards, per-pause idle/chatting switching), HTML page
       captured with headless Chromium. The avatar stays the centerpiece.

@@ -1,37 +1,16 @@
 #!/usr/bin/env python3
-"""word timings (ElevenLabs alignment) -> .ass captions, clawd-video-chat style.
-
-The rig speaks in TTS chunks — sentences (`[.!?\\n]` boundary; the FIRST chunk
-splits on any pause for fast first-audio; 240-char hard cap) — and shows each
-chunk as the on-screen caption (#speechCaption: white, bold sans, black
-stroke, bottom 64px, cleared when the queue drains). Same here. Stdlib only.
+"""plan.json (from plan_avatar.mjs — the rig's own TTS chunks, timed) -> .ass
+captions in clawd-video-chat's #speechCaption style: white, bold sans, black
+stroke, bottom 64px, each chunk held until the next starts, cleared when the
+speech queue drains. Stdlib only.
 """
 import json
-import re
 import sys
-
-FIRST_BREAK = re.compile(r"[.,!?;:]$")
-SENT_BREAK = re.compile(r"[.!?]$")
-MAX_CHUNK = 240  # _TTS_MAX_CHUNK
 
 
 def ts(t: float) -> str:
     t = max(t, 0.0)
     return f"{int(t // 3600)}:{int(t % 3600 // 60):02d}:{t % 60:05.2f}"
-
-
-def chunks(words):
-    """Group words exactly the way the rig chunks TTS."""
-    out, cur, first = [], [], True
-    for w in words:
-        cur.append(w)
-        text_len = sum(len(x["word"]) + 1 for x in cur)
-        brk = FIRST_BREAK if first else SENT_BREAK
-        if brk.search(w["word"].strip()) or text_len >= MAX_CHUNK:
-            out.append(cur); cur = []; first = False
-    if cur:
-        out.append(cur)
-    return out
 
 
 HEADER = """[Script Info]
@@ -50,25 +29,19 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
 
 
-def main(words_json, out_ass, offset=0.0):
-    words = json.load(open(words_json)).get("words") or []
-    if not words:
-        sys.exit("build_captions: no words[] in " + words_json)
-    words = [{**w, "start": w["start"] + offset, "end": w["end"] + offset} for w in words]
-    cs = chunks(words)
+def main(plan_json, out_ass):
+    caps = json.load(open(plan_json)).get("captions") or []
+    if not caps:
+        sys.exit("build_captions: no captions in " + plan_json)
     lines = [HEADER]
-    for i, c in enumerate(cs):
-        start = c[0]["start"]
-        # a caption stays up until the next chunk starts speaking; the last
-        # clears when speech ends (the rig's setCaption("") on queue drain)
-        end = cs[i + 1][0]["start"] if i + 1 < len(cs) else c[-1]["end"]
-        text = " ".join(w["word"].strip() for w in c).replace("{", "(").replace("}", ")")
-        lines.append(f"Dialogue: 0,{ts(start)},{ts(end)},Cap,,0,0,0,,{text}\n")
+    for c in caps:
+        text = c["text"].replace("{", "(").replace("}", ")").replace("\n", " ")
+        lines.append(f"Dialogue: 0,{ts(c['start'])},{ts(c['end'])},Cap,,0,0,0,,{text}\n")
     open(out_ass, "w").writelines(lines)
-    print(f"build_captions: {len(cs)} sentence captions, ends {ts(cs[-1][-1]['end'])}", file=sys.stderr)
+    print(f"build_captions: {len(caps)} captions, ends {ts(caps[-1]['end'])}", file=sys.stderr)
 
 
 if __name__ == "__main__":
-    if len(sys.argv) not in (3, 4):
-        sys.exit("usage: build_captions.py words.json out.ass [offset_seconds]")
-    main(sys.argv[1], sys.argv[2], float(sys.argv[3]) if len(sys.argv) == 4 else 0.0)
+    if len(sys.argv) != 3:
+        sys.exit("usage: build_captions.py plan.json out.ass")
+    main(sys.argv[1], sys.argv[2])
