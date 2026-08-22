@@ -28,8 +28,10 @@ if [ -z "${ELEVENLABS_API_KEY:-}" ]; then
   exit 0
 fi
 
-VOICE_ID="${ELEVENLABS_VOICE_ID:?ELEVENLABS_VOICE_ID not set in .env}"
-MODEL="${ELEVEN_MODEL:-eleven_multilingual_v2}"
+# Brian = clawd, the clawd-video-chat default. The harness env leaks a
+# different ELEVENLABS_VOICE_ID (Samantha) into agent shells — .env wins.
+VOICE_ID="${ELEVENLABS_VOICE_ID:-nPczCjzI2devNBz1zQrb}"
+MODEL="${ELEVEN_MODEL:-eleven_flash_v2_5}"   # same model as clawd-video-chat
 
 log "tts: elevenlabs voice=$VOICE_ID model=$MODEL"
 BODY="$(python3 - "$IN" "$MODEL" <<'EOF'
