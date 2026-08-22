@@ -11,8 +11,9 @@ A daily ~2-minute mp4 of clawd reading the morning news, ready to tweet.
 Input: `clawd-morning-update`'s `state/digest.md` (markdown of the gmsers.com
 paper). Output: `out/show-YYYY-MM-DD.mp4` + a suggested tweet on stdout.
 One entry point, five idempotent stages, pure ffmpeg for the mux, no
-screen capture, no live session. Posting is **deliberately not wired**
-(Austin wants to watch outputs before it auto-tweets).
+screen capture, no live session. **Scheduling and posting live in
+clawd-twitter, not here** — see "Schedule + posting" under "Not done /
+next" before adding any launchd job or Telegram send to this repo.
 
 ```
 ./scripts/make-show.sh samples/digest.md
@@ -258,25 +259,24 @@ to echo and what `render_cards` keys on.
 
 ## Not done / next
 
-- **Posting**: nothing tweets — Austin gets the clip on Telegram and posts
-  it himself. `clawd-twitter`'s `tweet-with-image.js` is the fork point
-  (`twitter-api-v2` `uploadMedia` does chunked video) if that changes.
-- **Schedule — DONE (2026-08-22)**: `launchd/com.clawd.morning-show.plist`
-  (installed in `~/Library/LaunchAgents` on this box — the Mac mini *is*
-  the morning-report machine) fires `scripts/cron.sh` at **7:45 Denver**,
-  after `com.clawd.morning-report` (7:30, done ~7:39) and before
-  clawd-twitter's 8:02 gm tweet. The wrapper waits up to 30 min for a
-  `digest.md` whose header carries today's date, runs `make-show.sh`, and
-  sends the mp4 + suggested tweet to Austin's Telegram with clawd-twitter's
-  `tg-send.js` (`.mp4` → `sendVideo`). Failure → a Telegram note, never a
-  retry loop; the gm tweet is untouched. Log: `out/cron.log`; lock:
-  `out/.ran-show-<date>`; test by hand with
-  `launchctl kickstart gui/$(id -u)/com.clawd.morning-show` (a fresh day is
-  all "fresh:" + one Telegram send). Login: the plain `~/.claude` dir IS
-  signed in — a `claude -p` that says "Not logged in" under `env -i` is
-  missing `USER`/`LOGNAME` (Keychain lookup), which launchd provides.
-  Re-install after editing the plist:
-  `cp launchd/*.plist ~/Library/LaunchAgents/ && launchctl bootout gui/$(id -u)/com.clawd.morning-show; launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.clawd.morning-show.plist`.
+- **Schedule + posting — owned by `clawd-twitter`, fully automatic
+  (2026-08-22).** Read `../clawd-twitter/docs/autonomous-posting.md`. The
+  chain on this Mac mini: 7:30 `com.clawd.morning-report` writes the
+  digest → **7:40 `com.clawd.twitter-show`** (`clawd-twitter/scripts/
+  morning-show.sh`) waits for it, runs **this repo's `make-show.sh`**, and
+  writes `clawd-twitter/state/morning-show.json` → **8:02
+  `com.clawd.twitter-morning`** posts the gm thread with no approval: gm +
+  image, the clip as tweet 2 (`reply-video.js`), the gmsers link as tweet 3,
+  then embeds the video atop gmsers.com/<date>. Austin: "no more asking me
+  in the morning about anything" — so nothing here may Telegram him on
+  success. A format change in this repo goes live the next morning by
+  itself; there is nothing to install. This repo has **no launchd job and no
+  posting code**, on purpose (I added a duplicate 7:45 job + Telegram ping
+  on 2026-08-22 without checking one repo over; it was ripped out the same
+  hour). Logs: `clawd-twitter/state/show.log` (build), `morning.log`
+  (post). Login note for anyone debugging a `claude -p` under launchd: the
+  plain `~/.claude` dir is signed in; "Not logged in" under `env -i` means
+  `USER`/`LOGNAME` are missing (Keychain), which launchd sets.
 - **Motion**: PIP drop and card swaps are hard cuts. A 0.3s scale/slide is
   an ffmpeg `overlay` x/y expression over `t` — no new tools.
 - **Avatars on cards** are initial-letter discs; the digest has no pfp URLs.

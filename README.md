@@ -66,7 +66,7 @@ reimplements it. (Running the real code found that the rig hard-loops
 `chatting_1` for the whole speech — every clip variant aliases to the same
 three files, so `chatting_1` is also `BUILDING`, which loops.) Needs
 an ffmpeg with libass/freetype (`brew install ffmpeg-full` — the plain brew
-bottle dropped them). Posting is deliberately not wired yet.
+bottle dropped them). Scheduling + posting are clawd-twitter's job (see below).
 
 ## Status
 
@@ -79,13 +79,13 @@ Ship order:
       story's tweet card takes the stage (headless-Chromium screenshots, not
       a capture).
 - [x] **v1.1** — the speed-headline format: 3 stories, then 10–12
-      one-line headlines with a beat between each, and a daily launchd run
-      (`launchd/`, `scripts/cron.sh`) that drops the clip into Austin's
-      Telegram at ~7:50 Denver. Next: motion on the cards / animated PIP
-      transition.
+      one-line headlines with a beat between each. Next: motion on the
+      cards / animated PIP transition.
 - [ ] **v2** — real session b-roll: asciinema cast of the actual news crawl
       behind the cards.
 
-Runs on the morning-report machine (launchd, ~8:35am Denver, right after the
-paper publishes). Any failure degrades to the normal gm tweet — the video
-just doesn't attach.
+Runs on the morning-report machine via `clawd-twitter`: `com.clawd.twitter-show`
+(7:40am Denver) calls `make-show.sh` after the paper publishes, and the 8:02
+autonomous gm thread posts the clip as tweet 2 (`clawd-twitter/docs/
+autonomous-posting.md`). Any failure degrades to the normal gm tweet — the
+video just doesn't attach.
