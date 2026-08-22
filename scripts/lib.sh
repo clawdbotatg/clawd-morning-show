@@ -9,10 +9,12 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # and 04 (comp timing) must agree, so the numbers live here.
 INTRO_S=2
 OUTRO_S=3
-# chatting_1.mp4's mouth doesn't move until ~0.62s in (measured: first frame
-# with real motion vs frame 0 is frame 15 @24fps). The cut to chatting leads
-# the audio by this much so he isn't talking with a closed mouth.
-MOUTH_LAG_S=0.6
+# lead of the cut-to-chatting over the voice. chatting_1.mp4 is mid-speech
+# at frame 0 (mouth open at 0.00s, closed 0.50s, open 0.75s — tiled and
+# looked at, not inferred), so no lead: 0. (An earlier 0.6 came from a
+# frame-diff that was measuring a head bob.) 04-render verifies the
+# voice onset against the first chatting cut and fails if they drift.
+MOUTH_LAG_S=0
 
 log()  { printf '\033[36m[%s]\033[0m %s\n' "$(basename "$0" .sh)" "$*" >&2; }
 die()  { printf '\033[31m[%s] FATAL:\033[0m %s\n' "$(basename "$0" .sh)" "$*" >&2; exit 1; }

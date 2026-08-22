@@ -43,6 +43,15 @@ fi
 
 if skip_if_fresh "$OUT" "$ASS" && skip_if_fresh "$OUT" "$AUDIO"; then exit 0; fi
 
+# ---- loudness-normalize as a PRE-PASS to wav. loudnorm emits NOPTS frames;
+# chained straight into adelay it left the first chunk of audio at t=0 while
+# delaying the rest — "gm" played over the idle clip. Keep it out of the
+# main graph. ----
+NORM="$WORK/voice.norm.wav"
+if [ ! -s "$NORM" ] || [ "$AUDIO" -nt "$NORM" ] || [ "${FORCE:-0}" = "1" ]; then
+  "$FFMPEG" -hide_banner -loglevel error -y -i "$AUDIO" -af "loudnorm=I=-16:TP=-1.5:LRA=11" -ar 48000 "$NORM"
+fi
+
 # ---- avatar plan: produced by stage 3 running the rig's own clawdVid code ----
 [ -s "$WORK/plan.json" ] && [ -s "$WORK/avatar.filter" ] || die "no avatar plan — run 03-captions.sh first"
 TOTAL="$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['total'])" "$WORK/plan.json")"
@@ -59,7 +68,7 @@ printf '%s · gmsers.com' "${HEADLINE:-$TAGLINE}" > "$WORK/lower3.txt"
   printf '%s\n' "[avatar]scale=560:560[av];\
 [0:v][av]overlay=(W-w)/2:H-h[comp];\
 [comp]drawtext=fontfile='$FONT':textfile=lower3.txt:fontcolor=0x99DDAA:fontsize=20:x=(w-text_w)/2:y=684:box=1:boxcolor=0x081008@0.85:boxborderw=12,subtitles=captions.ass,format=yuv420p[v];\
-[1:a]loudnorm=I=-16:TP=-1.5:LRA=11,aresample=48000,adelay=${DELAY_MS}:all=1,apad[aud]"
+[1:a]adelay=${DELAY_MS}:all=1,apad[aud]"
 } > "$WORK/show.filter"
 
 log "render: $OUT (${TOTAL%.*}s total)"
@@ -68,12 +77,26 @@ case "$OUT" in /*) ABS_OUT="$OUT";; *) ABS_OUT="$PWD/$OUT";; esac
 
 ( cd "$WORK" && "$FFMPEG" -hide_banner -loglevel error -y \
   -framerate 24 -loop 1 -i frame.png \
-  -i voice.mp3 \
+  -i voice.norm.wav \
   -stream_loop -1 -i "$IDLE1" -stream_loop -1 -i "$IDLE2" -stream_loop -1 -i "$CHAT" \
   -filter_complex_script show.filter \
   -map "[v]" -map "[aud]" -t "$TOTAL" -r 24 \
   -c:v libx264 -preset medium -crf 21 -c:a aac -b:a 128k \
   -movflags +faststart "$ABS_OUT" )
+
+# ---- sync self-check: voice onset in the FILE vs the first chatting cut ----
+# (measured off the rendered mp4, not the plan — this is what a player sees)
+ONSET="$("$FFMPEG" -hide_banner -i "$OUT" -t 15 -af silencedetect=n=-35dB:d=0.2 -f null - 2>&1 \
+  | sed -nE 's/.*silence_end: ([0-9.]+).*/\1/p' | head -1)"
+FIRST_CHAT="$(python3 -c "
+import json,sys; d=json.load(open(sys.argv[1])); t=0
+for s in d['segments']:
+    if s['clip']=='chatting_1': print(round(t,3)); break
+    t+=s['dur']" "$WORK/plan.json")"
+[ -n "$ONSET" ] && [ -n "$FIRST_CHAT" ] || die "sync check: could not measure voice onset ($ONSET) / first chatting cut ($FIRST_CHAT)"
+awk -v o="$ONSET" -v c="$FIRST_CHAT" -v l="$MOUTH_LAG_S" 'BEGIN{ d=o-(c+l); if (d<0) d=-d; exit !(d<=0.15) }' \
+  || die "sync check FAILED: voice starts at ${ONSET}s, chatting cut at ${FIRST_CHAT}s (+lag $MOUTH_LAG_S) — mouth and voice disagree"
+log "sync ok: voice onset ${ONSET}s, chatting cut ${FIRST_CHAT}s"
 
 DUR="$(media_duration "$OUT")"
 SIZE=$(du -h "$OUT" | cut -f1 | tr -d ' ')
