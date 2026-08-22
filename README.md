@@ -77,7 +77,12 @@ Ship order:
       clawd's ElevenLabs voice, pure ffmpeg.
 - [x] **v1** — story stage: clawd shrinks to a PIP after the intro and each
       story's tweet card takes the stage (headless-Chromium screenshots, not
-      a capture). Next: motion on the cards / animated PIP transition.
+      a capture).
+- [x] **v1.1** — the speed-headline format: 3 stories, then 10–12
+      one-line headlines with a beat between each, and a daily launchd run
+      (`launchd/`, `scripts/cron.sh`) that drops the clip into Austin's
+      Telegram at ~7:50 Denver. Next: motion on the cards / animated PIP
+      transition.
 - [ ] **v2** — real session b-roll: asciinema cast of the actual news crawl
       behind the cards.
 

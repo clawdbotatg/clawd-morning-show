@@ -31,12 +31,16 @@ load_env() {
   fi
 }
 
-# skip a stage when its output already exists and is newer than the input.
-# usage: skip_if_fresh <out> <in> && exit 0 (FORCE=1 always re-runs)
+# skip a stage when its output already exists and is not older than the input.
+# "not older" (! in -nt out), NOT "newer" (out -nt in): a fast stage writes its
+# output in the same second its input landed, and -nt is false on equal
+# mtimes — that re-ran plan+render on every invocation (2026-08-22) and,
+# before that, re-billed claude/TTS. usage: skip_if_fresh <out> <in> && exit 0
+# (FORCE=1 always re-runs)
 skip_if_fresh() {
   local out="$1" in="$2"
   [ "${FORCE:-0}" = "1" ] && return 1
-  [ -s "$out" ] && [ "$out" -nt "$in" ] && { log "fresh: $out (FORCE=1 to redo)"; return 0; }
+  [ -s "$out" ] && ! [ "$in" -nt "$out" ] && { log "fresh: $out (FORCE=1 to redo)"; return 0; }
   return 1
 }
 

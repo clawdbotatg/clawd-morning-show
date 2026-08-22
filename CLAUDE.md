@@ -186,11 +186,12 @@ and the timeline constants (`INTRO_S=2`, `OUTRO_S=3`, `MOUTH_LAG_S=0`) are in
      in lib.sh probes for it (`FFMPEG=` env overrides). Installing it pulls a
      newer `x265` and leaves an older plain `ffmpeg` bottle unable to load
      (`libx265.N.dylib` missing) — `brew upgrade ffmpeg` repairs it.
-   - **Freshness trap**: a stage that writes two outputs in the same second
-     must not `skip_if_fresh` one against the other — `-nt` is false on an
-     equal mtime, so stage 1 re-ran `claude -p` (and, by making `script.txt`
-     newer, stage 2 re-billed ElevenLabs) on *every* invocation. Stages 1 and
-     3 now test `[ -s second ] && skip_if_fresh first input`. A fresh re-run
+   - **Freshness trap**: `-nt` is false on an *equal* mtime, and a fast
+     stage routinely writes its output in the same second its input landed
+     (stage 1's two files; TTS→`words.json`→`plan.json`). With `out -nt in`
+     that re-ran `claude -p` + re-billed ElevenLabs on every invocation, and
+     after that fix still re-ran plan+render daily. `skip_if_fresh` is now
+     `! in -nt out` ("not older"), which is the right test. A fresh re-run
      of `make-show.sh` should take <1s and make no API call — check that
      after touching any skip logic.
 
@@ -257,14 +258,25 @@ to echo and what `render_cards` keys on.
 
 ## Not done / next
 
-- **Posting**: nothing tweets. `clawd-twitter`'s `tweet-with-image.js` is the
-  fork point (`twitter-api-v2` `uploadMedia` does chunked video).
-- **Schedule**: meant to run on the morning-report machine ~8:35am Denver
-  after `com.clawd.morning-report`, reading `state/digest.md` directly;
-  failure should degrade to the normal gm tweet. That box needs: `claude`
-  on a subscription, `ffmpeg-full`, node + `npm i`, Playwright Chromium
-  cached, `.env` with the ElevenLabs creds, and the gitleaks allowlist if it
-  commits anything.
+- **Posting**: nothing tweets — Austin gets the clip on Telegram and posts
+  it himself. `clawd-twitter`'s `tweet-with-image.js` is the fork point
+  (`twitter-api-v2` `uploadMedia` does chunked video) if that changes.
+- **Schedule — DONE (2026-08-22)**: `launchd/com.clawd.morning-show.plist`
+  (installed in `~/Library/LaunchAgents` on this box — the Mac mini *is*
+  the morning-report machine) fires `scripts/cron.sh` at **7:45 Denver**,
+  after `com.clawd.morning-report` (7:30, done ~7:39) and before
+  clawd-twitter's 8:02 gm tweet. The wrapper waits up to 30 min for a
+  `digest.md` whose header carries today's date, runs `make-show.sh`, and
+  sends the mp4 + suggested tweet to Austin's Telegram with clawd-twitter's
+  `tg-send.js` (`.mp4` → `sendVideo`). Failure → a Telegram note, never a
+  retry loop; the gm tweet is untouched. Log: `out/cron.log`; lock:
+  `out/.ran-show-<date>`; test by hand with
+  `launchctl kickstart gui/$(id -u)/com.clawd.morning-show` (a fresh day is
+  all "fresh:" + one Telegram send). Login: the plain `~/.claude` dir IS
+  signed in — a `claude -p` that says "Not logged in" under `env -i` is
+  missing `USER`/`LOGNAME` (Keychain lookup), which launchd provides.
+  Re-install after editing the plist:
+  `cp launchd/*.plist ~/Library/LaunchAgents/ && launchctl bootout gui/$(id -u)/com.clawd.morning-show; launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.clawd.morning-show.plist`.
 - **Motion**: PIP drop and card swaps are hard cuts. A 0.3s scale/slide is
   an ffmpeg `overlay` x/y expression over `t` — no new tools.
 - **Avatars on cards** are initial-letter discs; the digest has no pfp URLs.
