@@ -15,6 +15,11 @@ OUTRO_S=3
 # frame-diff that was measuring a head bob.) 04-render verifies the
 # voice onset against the first chatting cut and fails if they drift.
 MOUTH_LAG_S=0
+# beat between rapid-fire headlines: an ElevenLabs <break> tag in script.txt
+# (the alignment returns the tag as zero-width chars; 02 drops them when
+# folding words, plan_avatar strips them from the text). Paragraph breaks
+# alone give ~0.7s; this replaces, not adds.
+HEADLINE_BREAK_S=0.9
 
 log()  { printf '\033[36m[%s]\033[0m %s\n' "$(basename "$0" .sh)" "$*" >&2; }
 die()  { printf '\033[31m[%s] FATAL:\033[0m %s\n' "$(basename "$0" .sh)" "$*" >&2; exit 1; }

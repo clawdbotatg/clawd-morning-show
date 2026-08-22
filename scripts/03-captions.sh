@@ -24,7 +24,8 @@ if [ ! -s "$WORDS" ] || { [ "$AUDIO" -nt "$WORDS" ] && [ "${FORCE:-0}" = "1" ]; 
   DUR="$(media_duration "$AUDIO")"
   python3 - "$WORK/script.txt" "$DUR" > "$WORDS" <<'PY'
 import json, sys
-words = open(sys.argv[1]).read().split()
+import re
+words = re.sub(r"<[^>]*>", " ", open(sys.argv[1]).read()).split()
 dur = float(sys.argv[2])
 step = dur / len(words)
 json.dump({"words": [{"word": w, "start": round(i*step, 3),

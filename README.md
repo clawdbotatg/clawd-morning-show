@@ -44,7 +44,7 @@ cp .env.example .env         # ElevenLabs creds — same as clawd-video-chat's
 Stages (each idempotent — skips fresh outputs, `FORCE=1` re-runs):
 `01-script.sh` digest → `stories.json` (`digest_parse.py`, the real
 clawd-morning-update `digest.md` shape) → ~290 spoken words via `claude -p` +
-`prompts/host.md`, as JSON segments (intro / story×N tagged with the digest
+`prompts/host.md`, as JSON segments (intro / story×3 / headline×10–12 tagged with the digest
 heading / outro) ·
 `02-tts.sh` ElevenLabs `with-timestamps` — **clawd's existing clawd-video-chat
 voice** (`ELEVENLABS_VOICE_ID`), audio + word timings in one call (no key →
@@ -54,12 +54,14 @@ loud macOS `say` fallback) · `03-captions.sh` timings → burned `.ass` caption
 vendored `assets/rig/index.html` and executes it in node against fake
 `<video>`s with the real clip durations, feeding it the same events the live
 page gets) → which clip shows when, plus the chunk captions in the rig's
-`#speechCaption` style, plus the layout timeline (each story's span, the PIP
-window) · `04-cards.sh` one stage card per story — theme title + its top 3
-tweets, initial-letter avatars — screenshotted by the cached Playwright
-Chromium (`render_cards.mjs`, no network) · `05-render.sh` comp: clawd
-full-frame for intro/outro, bottom-right PIP with the story card on the
-stage during stories, headline ticker, burned captions → H.264 mp4. `scripts/fetch-rig.sh` re-vendors the rig; nothing here
+`#speechCaption` style, plus the layout timeline (each card's span, the PIP
+window) · `04-cards.sh` one stage card per story (theme title + its top 3
+tweets) and per headline (the line, big, over the tweet it came from),
+initial-letter avatars, screenshotted by the cached Playwright Chromium
+(`render_cards.mjs`, no network) · `05-render.sh` comp: clawd full-frame for
+intro/outro, bottom-right PIP with the card on the stage during the stories
+and the headline run, headline ticker, burned captions → H.264 mp4. Headlines
+are separated by ElevenLabs `<break>` tags for the read-pause-read rhythm. `scripts/fetch-rig.sh` re-vendors the rig; nothing here
 reimplements it. (Running the real code found that the rig hard-loops
 `chatting_1` for the whole speech — every clip variant aliases to the same
 three files, so `chatting_1` is also `BUILDING`, which loops.) Needs

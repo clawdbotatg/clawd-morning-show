@@ -104,10 +104,31 @@ and the timeline constants (`INTRO_S=2`, `OUTRO_S=3`, `MOUTH_LAG_S=0`) are in
 
 1. **`01-script.sh`** digest.md → `stories.json` (`digest_parse.py`) →
    `claude -p --model sonnet` with `prompts/host.md` → **JSON segments**
-   `{kind: intro|story|outro, theme, text}` validated against the digest's
-   `##` headings (exact match after case-fold), retried once on invalid /
-   out-of-range, → `script.json` + `script.txt` (segments joined by blank
-   lines; this is what TTS reads).
+   `{kind: intro|story|headline|outro, theme, handle?, text}` validated
+   against the digest's `##` headings (exact match after case-fold), retried
+   once on invalid / out-of-range, → `script.json` + `script.txt` (segments
+   joined by blank lines; this is what TTS reads).
+   - **Show shape (2026-08-22, Austin's call):** intro → **exactly 3
+     stories** (fact-first; only the first may end on a one-line "so what")
+     → **10–12 one-sentence headlines** ("read the headline, pause, read the
+     headline") → outro. The old 5–6 × (headline + "what it means") loop got
+     repetitive and slopped ("half the timeline thinks X, the other half
+     Y"). The validator enforces the shape AND rejects a slop-phrase regex
+     (`timeline's split/arguing`, `it's not X, it's Y`, `what it means`…) so
+     the corrective pass fires instead of shipping it; the prompt bans the
+     same list. The model *will* route around a prompt-only ban (it went
+     from "split" to "arguing" in one regen) — extend the regex, not just
+     the prose.
+   - **The headline beat is an ElevenLabs `<break time="0.9s" />` tag**
+     (`HEADLINE_BREAK_S` in lib.sh) written into `script.txt` before each
+     headline. Paragraph breaks alone gave ~0.6s; the tag gives ~1.0s (it
+     replaces, not adds). Measured: the with-timestamps alignment returns the
+     tag as zero-width characters, so 02 skips `<…>` spans when folding
+     words and `plan_avatar.mjs` strips tags from the text — word counts on
+     both sides must stay equal or the plan dies with "chunk/word mismatch".
+     Tags never enter `script.json` (validator rejects `<`/`>` in text).
+   - Freshness also keys on `prompts/host.md`, so editing the prompt re-runs
+     the pass (and, by making `script.txt` newer, re-bills TTS once).
    - `scrub_claude_env` unsets `CLAUDECODE`/`CLAUDE_CODE_*`/`ANTHROPIC_*`
      first — a nested `claude` otherwise runs embedded (no transcript, metered
      billing). Same gotcha as the harness.
@@ -119,16 +140,24 @@ and the timeline constants (`INTRO_S=2`, `OUTRO_S=3`, `MOUTH_LAG_S=0`) are in
    macOS `say` (Samantha) fallback so the pipeline stays testable; 03 then
    synthesizes uniform timings (captions drift — dev only).
 3. **`03-captions.sh`** runs `plan_avatar.mjs` → `plan.json` (`segments`,
-   `captions` with `mode`, `layout.pip` + `layout.stories`, `total`) +
+   `captions` with `mode`, `layout.pip` + `layout.cards`, `total`) +
    `avatar.filter`; then `build_captions.py` → `captions.ass` in the rig's
    `#speechCaption` style (white bold Helvetica, black stroke, bottom 64px;
    `CapPip` style with a 400px right margin during the PIP window).
    Caption unit = the rig's TTS chunk (a sentence; first chunk on any pause;
-   240-char cap), held until the next chunk starts.
-4. **`04-cards.sh`** → `render_cards.mjs`: one 860px-wide stage card per
-   story (theme title + top 3 tweets by likes+rts, boosted if the script
-   names the handle; initial-letter avatars — the digest carries no image
-   URLs), screenshotted by the machine's cached Playwright Chromium
+   240-char cap), held until the next chunk starts. `layout.cards` is every
+   story AND headline segment (`kind` on each), each holding the stage until
+   the next starts. Captions whose chunk falls inside a headline card get
+   `mode:"headline"` and are **not painted** — the card already shows the
+   line big; painting it twice looked sloppy.
+4. **`04-cards.sh`** → `render_cards.mjs` → `cards/card-<n>.png`, n over
+   both kinds. Story card: 860px-wide theme title + top 3 tweets by
+   likes+rts, boosted if the script names the handle. Headline card: the
+   spoken line at 38px over the ONE tweet it was read off (`handle` from
+   script.json); a blurb-sourced headline (no handle) shows "from <section>"
+   instead — never a fallback tweet, which put an unrelated post under the
+   line the first time. Initial-letter avatars — the digest carries no image
+   URLs. Screenshotted by the machine's cached Playwright Chromium
    (`~/Library/Caches/ms-playwright`, same resolution as the harness's
    `tools/uiprobe.mjs` — plus the newer
    `chrome-headless-shell-mac[-arm64]/chrome-headless-shell` layout, the only
@@ -167,7 +196,8 @@ and the timeline constants (`INTRO_S=2`, `OUTRO_S=3`, `MOUTH_LAG_S=0`) are in
 
 `make-show.sh` chains them, exports `HEADLINE` (from `stories.json`) for the
 ticker, and prints the suggested tweet. Hard cuts everywhere on purpose
-(that's the rig's look); there is no animation yet.
+(that's the rig's look); there is no animation yet. A typical show is now
+~115s: 3 stories hold ~15–18s each, headlines ~4–6s each.
 
 ## Input contract — the real digest.md
 

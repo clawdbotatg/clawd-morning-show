@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # stage 5: the comp. clawd full-frame for the intro/outro; during the stories
-# he shrinks to a bottom-right PIP and each story's tweet card (stage 4)
-# takes the stage on the left, swapped on the story's start time
-# (plan.layout from stage 3). Hard cuts throughout, like the rig.
+# and the headline run he shrinks to a bottom-right PIP and each card (stage
+# 4: a story's tweet stack, or a headline + its tweet) takes the stage on the
+# left, swapped on the segment's start time (plan.layout from stage 3). Hard
+# cuts throughout, like the rig.
 #
 # timeline: INTRO_S idle cold-open · narration · OUTRO_S idle outro, with the
 # clip sequence decided by clawd-video-chat's OWN clawdVid code (stage 3,
@@ -69,17 +70,17 @@ printf '%s · gmsers.com' "${HEADLINE:-$TAGLINE}" > "$WORK/lower3.txt"
 # stage card 860x420 at (40,140); PIP avatar 300px at (940,360); full avatar 560px centered.
 read -r PIP_S PIP_E NCARDS <<<"$(python3 -c "
 import json,sys; L=json.load(open(sys.argv[1]))['layout']; p=L['pip']
-print(p['start'] if p else -1, p['end'] if p else -1, len(L['stories']))" "$WORK/plan.json")"
+print(p['start'] if p else -1, p['end'] if p else -1, len(L['cards']))" "$WORK/plan.json")"
 CARD_INPUTS=(); CARD_CHAIN=""
 if [ "$NCARDS" -gt 0 ]; then
   for i in $(seq 0 $((NCARDS-1))); do
-    [ -s "$WORK/cards/story-$i.png" ] || die "missing card $WORK/cards/story-$i.png — run 04-cards.sh"
-    CARD_INPUTS+=(-framerate 24 -loop 1 -i "cards/story-$i.png")
+    [ -s "$WORK/cards/card-$i.png" ] || die "missing card $WORK/cards/card-$i.png — run 04-cards.sh"
+    CARD_INPUTS+=(-framerate 24 -loop 1 -i "cards/card-$i.png")
   done
   CARD_CHAIN="$(python3 -c "
 import json,sys; L=json.load(open(sys.argv[1]))['layout']
 prev='c1'; out=[]
-for i,s in enumerate(L['stories']):
+for i,s in enumerate(L['cards']):
     nxt=f'k{i}'; out.append(f\"[{prev}][{5+i}:v]overlay=40:140:enable='between(t,{s['start']},{s['end']})'[{nxt}]\"); prev=nxt
 print(';'.join(out)+';' if out else '', end='')" "$WORK/plan.json")"
   LAST_LABEL="k$((NCARDS-1))"

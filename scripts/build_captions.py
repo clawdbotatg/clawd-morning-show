@@ -36,11 +36,13 @@ def main(plan_json, out_ass):
         sys.exit("build_captions: no captions in " + plan_json)
     lines = [HEADER]
     for c in caps:
+        if c.get("mode") == "headline":   # the headline card on stage is the caption
+            continue
         text = c["text"].replace("{", "(").replace("}", ")").replace("\n", " ")
         style = "CapPip" if c.get("mode") == "pip" else "Cap"   # PIP mode: clawd is bottom-right, captions keep left
         lines.append(f"Dialogue: 0,{ts(c['start'])},{ts(c['end'])},{style},,0,0,0,,{text}\n")
     open(out_ass, "w").writelines(lines)
-    print(f"build_captions: {len(caps)} captions, ends {ts(caps[-1]['end'])}", file=sys.stderr)
+    print(f"build_captions: {len(lines) - 1} of {len(caps)} captions painted, ends {ts(caps[-1]['end'])}", file=sys.stderr)
 
 
 if __name__ == "__main__":

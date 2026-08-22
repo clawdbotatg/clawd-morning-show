@@ -11,9 +11,11 @@
 //
 // usage: plan_avatar.mjs rig.html words.json script.txt script.json intro_s outro_s mouth_lag_s audio_s \
 //          d_idle1 d_idle2 d_chat seed plan.json avatar.filter
-// script.json (stage 1) tags the text as intro / story×N / outro segments; their
-// word spans map to times the same way chunks do -> plan.layout: the PIP window
-// (first story start .. outro start) and each story's on-screen span.
+// script.json (stage 1) tags the text as intro / story×N / headline×N / outro
+// segments; their word spans map to times the same way chunks do ->
+// plan.layout: the PIP window (first card start .. outro start) and each
+// card's (story or headline) on-screen span. script.txt may carry ElevenLabs
+// <break> tags between headlines — they are not words, strip them first.
 // mouth_lag_s: the chatting clip's mouth starts moving that long after its
 // first frame, so every chatting() cut is fired that much BEFORE the audio
 // it belongs to (audio itself is delayed by intro+lag in the render).
@@ -63,7 +65,7 @@ function chunkText(fullText) {
   return out.map(t => t.trim()).filter(Boolean);
 }
 
-const script = fs.readFileSync(scriptTxt, "utf8").trim();
+const script = fs.readFileSync(scriptTxt, "utf8").replace(/<[^>]*>/g, " ").replace(/[ \t]+/g, " ").trim();
 const words = JSON.parse(fs.readFileSync(wordsJson, "utf8")).words;
 const chunks = chunkText(script);
 // map chunks -> word timings by cumulative word count (chunk cuts are on whitespace)
@@ -92,15 +94,15 @@ const segSpans = [];
   }
   if (w !== words.length) throw new Error(`script.json words ${w} != alignment ${words.length}`);
 }
-const storySpans = segSpans.filter(x => x.kind === "story");
+const cardSpans = segSpans.filter(x => x.kind === "story" || x.kind === "headline");
 const outroSeg = segSpans.find(x => x.kind === "outro");
-// a story holds the screen until the next story starts; the last until the outro
-const layoutStories = storySpans.map((x, i) => ({
-  index: i, theme: x.theme, card: `cards/story-${i}.png`,
+// a card holds the screen until the next card starts; the last until the outro
+const layoutCards = cardSpans.map((x, i) => ({
+  index: i, kind: x.kind, theme: x.theme, card: `cards/card-${i}.png`,
   start: +x.start.toFixed(3),
-  end: +(i + 1 < storySpans.length ? storySpans[i + 1].start : (outroSeg ? outroSeg.start : speechEnd)).toFixed(3),
+  end: +(i + 1 < cardSpans.length ? cardSpans[i + 1].start : (outroSeg ? outroSeg.start : speechEnd)).toFixed(3),
 }));
-const pip = layoutStories.length ? { start: layoutStories[0].start, end: layoutStories[layoutStories.length - 1].end } : null;
+const pip = layoutCards.length ? { start: layoutCards[0].start, end: layoutCards[layoutCards.length - 1].end } : null;
 
 // ── 3. discrete-event clock + seeded random ─────────────────────────────────
 let now = 0, seq = 0;
@@ -191,11 +193,13 @@ segs.forEach((s, k) => lines.push(`[${s.clip}_${uses[s.clip].indexOf(k)}]trim=du
 lines.push(segs.map((_, k) => `[seg${k}]`).join("") + `concat=n=${segs.length}:v=1:a=0[avatar]`);
 fs.writeFileSync(outFilter, lines.join(";\n"));
 
+const inHeadline = (t) => layoutCards.some(c => c.kind === "headline" && t >= c.start - 1e-3 && t < c.end - 1e-3);
 const captions = chunkTimes.map((c, i) => ({ text: c.text, start: +c.start.toFixed(3),
   end: +(i + 1 < chunkTimes.length ? chunkTimes[i + 1].start : speechEnd).toFixed(3),
-  mode: pip && c.start >= pip.start - 1e-3 && c.start < pip.end - 1e-3 ? "pip" : "full" }));
+  // "headline": the card on stage already shows this line big — build_captions skips it
+  mode: inHeadline(c.start) ? "headline" : pip && c.start >= pip.start - 1e-3 && c.start < pip.end - 1e-3 ? "pip" : "full" }));
 fs.writeFileSync(outPlan, JSON.stringify({ total: +TOTAL.toFixed(3), speechEnd, rig: fs.existsSync(rigHtml.replace(/index\.html$/, "SOURCE")) ? fs.readFileSync(rigHtml.replace(/index\.html$/, "SOURCE"), "utf8").trim() : null,
-  layout: { pip, stories: layoutStories }, captions, segments: segs }, null, 1));
+  layout: { pip, cards: layoutCards }, captions, segments: segs }, null, 1));
 const chat = segs.filter(s => s.clip === "chatting_1").reduce((x, s) => x + s.dur, 0);
 console.error(`rig plan: ${captions.length} chunks, ${segs.length} segments, chatting ${chat.toFixed(0)}s of ${TOTAL.toFixed(0)}s; ` +
-  (pip ? `${layoutStories.length} stories on stage, PIP ${pip.start}s–${pip.end}s` : "no stories"));
+  (pip ? `${layoutCards.filter(c => c.kind === "story").length} stories + ${layoutCards.filter(c => c.kind === "headline").length} headlines on stage, PIP ${pip.start}s–${pip.end}s` : "no cards"));

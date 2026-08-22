@@ -59,8 +59,13 @@ d = json.load(open(sys.argv[1]))
 open(sys.argv[2], "wb").write(base64.b64decode(d["audio_base64"]))
 al = d["alignment"]
 chars, starts, ends = al["characters"], al["character_start_times_seconds"], al["character_end_times_seconds"]
-words, cur = [], None
+words, cur, tag = [], None, False
 for c, s, e in zip(chars, starts, ends):
+    # <break time="0.9s" /> tags come back as zero-width chars — not words
+    if c == "<": tag = True
+    if tag:
+        if c == ">": tag = False
+        continue
     if c.isspace():
         if cur: words.append(cur); cur = None
         continue
