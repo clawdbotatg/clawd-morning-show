@@ -130,8 +130,14 @@ and the timeline constants (`INTRO_S=2`, `OUTRO_S=3`, `MOUTH_LAG_S=0`) are in
    names the handle; initial-letter avatars — the digest carries no image
    URLs), screenshotted by the machine's cached Playwright Chromium
    (`~/Library/Caches/ms-playwright`, same resolution as the harness's
-   `tools/uiprobe.mjs`). `playwright-core` via `package.json`; no network.
-5. **`05-render.sh`** the comp, one `-filter_complex_script`:
+   `tools/uiprobe.mjs` — plus the newer
+   `chrome-headless-shell-mac[-arm64]/chrome-headless-shell` layout, the only
+   one a current `npx playwright install` leaves; uiprobe still lacks it).
+   `playwright-core` via `package.json`; no network.
+5. **`05-render.sh`** the comp, one filter graph read from `show.filter`
+   (`-/filter_complex` on ffmpeg ≥7 — ffmpeg 8 removed
+   `-filter_complex_script`, and brew's `ffmpeg-full` is 9; the old flag is
+   kept for older builds):
    - `loudnorm` runs as a **separate pre-pass** to `voice.norm.wav`. Inline,
      loudnorm emits NOPTS frames and `adelay` after it left the first chunk
      of audio at t=0 while delaying the rest — "gm" played over the idle
@@ -148,7 +154,16 @@ and the timeline constants (`INTRO_S=2`, `OUTRO_S=3`, `MOUTH_LAG_S=0`) are in
    - Needs an ffmpeg with libass + freetype. brew's plain `ffmpeg` bottle
      dropped them (no `subtitles`, no `drawtext`); **`ffmpeg-full`** is
      keg-only at `/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg` and `check_ffmpeg`
-     in lib.sh probes for it (`FFMPEG=` env overrides).
+     in lib.sh probes for it (`FFMPEG=` env overrides). Installing it pulls a
+     newer `x265` and leaves an older plain `ffmpeg` bottle unable to load
+     (`libx265.N.dylib` missing) — `brew upgrade ffmpeg` repairs it.
+   - **Freshness trap**: a stage that writes two outputs in the same second
+     must not `skip_if_fresh` one against the other — `-nt` is false on an
+     equal mtime, so stage 1 re-ran `claude -p` (and, by making `script.txt`
+     newer, stage 2 re-billed ElevenLabs) on *every* invocation. Stages 1 and
+     3 now test `[ -s second ] && skip_if_fresh first input`. A fresh re-run
+     of `make-show.sh` should take <1s and make no API call — check that
+     after touching any skip logic.
 
 `make-show.sh` chains them, exports `HEADLINE` (from `stories.json`) for the
 ticker, and prints the suggested tweet. Hard cuts everywhere on purpose
