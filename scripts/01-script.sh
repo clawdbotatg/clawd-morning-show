@@ -21,12 +21,34 @@ python3 "$ROOT/scripts/digest_parse.py" "$DIGEST" "$STORIES"
 
 scrub_claude_env
 
+# which subscription: under launchd there is no CLAUDE_CONFIG_DIR, so claude -p
+# used the plain ~/.claude login — which was at its weekly wall on 2026-08-23
+# and answered "You've hit your weekly limit" instead of a script. The harness
+# already polls every login's usage; pick_account.py ranks them off that file
+# and we walk the list, moving on when an account answers with a limit line.
+# Last entry "" = the default login (no CLAUDE_CONFIG_DIR), as before.
+ACCOUNTS=()
+while IFS= read -r d; do ACCOUNTS+=("$d"); done < <(python3 "$ROOT/scripts/pick_account.py" 2>/dev/null || true)
+ACCOUNTS+=("")
+[ -n "${SHOW_CLAUDE_DIR:-}" ] && ACCOUNTS=("$SHOW_CLAUDE_DIR")   # hand-pin override
+
 run_pass() { # $1 = extra instruction (may be empty) -> raw model output
-  { cat "$ROOT/prompts/host.md"
-    [ -n "$1" ] && printf '\nEXTRA INSTRUCTION: %s\n' "$1"
-    printf '\n--- TODAY'\''S DIGEST ---\n'
-    cat "$DIGEST"
-  } | claude -p --model sonnet
+  local d out
+  for d in "${ACCOUNTS[@]}"; do
+    if [ -n "$d" ]; then export CLAUDE_CONFIG_DIR="$d"; else unset CLAUDE_CONFIG_DIR; fi
+    out="$({ cat "$ROOT/prompts/host.md"
+      [ -n "$1" ] && printf '\nEXTRA INSTRUCTION: %s\n' "$1"
+      printf '\n--- TODAY'\''S DIGEST ---\n'
+      cat "$DIGEST"
+    } | claude -p --model sonnet || true)"
+    if printf '%s' "$out" | head -c 400 | grep -qiE "hit your .*limit|usage limit|rate limit"; then
+      log "account ${d:-default} is at its limit — trying next"
+      continue
+    fi
+    [ -n "$d" ] && log "account: $(basename "$d")"
+    printf '%s\n' "$out"; return 0
+  done
+  printf '%s\n' "$out"   # every account walled: hand the last reply to the validator, which dies loudly
 }
 
 # validate + normalize the model's JSON against the digest; prints a one-line

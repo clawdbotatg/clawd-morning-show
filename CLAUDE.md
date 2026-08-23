@@ -128,6 +128,17 @@ and the timeline constants (`INTRO_S=2`, `OUTRO_S=3`, `MOUTH_LAG_S=0`) are in
      words and `plan_avatar.mjs` strips tags from the text — word counts on
      both sides must stay equal or the plan dies with "chunk/word mismatch".
      Tags never enter `script.json` (validator rejects `<`/`>` in text).
+   - **Which subscription** (2026-08-23): under launchd there is no
+     `CLAUDE_CONFIG_DIR`, so `claude -p` hit the plain `~/.claude` login —
+     at its weekly wall that morning, it answered "You've hit your weekly
+     limit" and the show didn't build. Now `pick_account.py` ranks every
+     login off the harness's own polled usage
+     (`../../.clawd-harness.sessions.json` — one per org, fresh readings
+     first, least-used first, ≥97% dropped; don't hit the usage endpoint
+     yourself, it 429s) and `run_pass` walks the list, moving on whenever
+     an account answers with a limit line; `""` (default login) is the
+     last fallback. `SHOW_CLAUDE_DIR=<dir>` pins one by hand. Check:
+     `python3 scripts/pick_account.py`.
    - Freshness also keys on `prompts/host.md`, so editing the prompt re-runs
      the pass (and, by making `script.txt` newer, re-bills TTS once).
    - `scrub_claude_env` unsets `CLAUDECODE`/`CLAUDE_CODE_*`/`ANTHROPIC_*`
