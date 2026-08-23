@@ -134,7 +134,7 @@ and the timeline constants (`INTRO_S=2`, `OUTRO_S=3`, `MOUTH_LAG_S=0`) are in
      limit" and the show didn't build. Now `pick_account.py` ranks every
      login off the harness's own polled usage
      (`../../.clawd-harness.sessions.json` — one per org, fresh readings
-     first, least-used first, ≥97% dropped; don't hit the usage endpoint
+     first, least-used first, ≥97% last; don't hit the usage endpoint
      yourself, it 429s) and `run_pass` walks the list, moving on whenever
      an account answers with a limit line; `""` (default login) is the
      last fallback. `SHOW_CLAUDE_DIR=<dir>` pins one by hand. Check:

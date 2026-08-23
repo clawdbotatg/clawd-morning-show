@@ -5,7 +5,8 @@ Reads the harness's persisted per-account usage (it polls every login
 already; hitting the usage endpoint ourselves gets 429s) from
 <harness>/.clawd-harness.sessions.json. One line per ORG (several dirs can
 share one subscription pool), fresh readings before stale ones, least
-weekly usage first, pools at >= HOT% dropped. No file / no accounts ->
+weekly usage first, pools at >= HOT% last (still tried: the reading may
+be stale and a walled account answers instantly anyway). No file / no accounts ->
 prints nothing and the caller falls back to the default ~/.claude login.
 
   python3 pick_account.py [harness_dir]
@@ -33,9 +34,7 @@ for a in accounts:
         best[org] = (pct, at, d, a.get("name"))
 
 now = time.time()
-rows = sorted(best.values(), key=lambda r: (now - r[1] > STALE_S, r[0]))
+rows = sorted(best.values(), key=lambda r: (r[0] >= HOT, now - r[1] > STALE_S, r[0]))
 for pct, at, d, name in rows:
-    if pct < HOT:
-        print(d)
-    else:
-        print(f"skip {name}: {pct:.0f}% used", file=sys.stderr)
+    print(f"{name}: {pct:.0f}% used", file=sys.stderr)
+    print(d)
