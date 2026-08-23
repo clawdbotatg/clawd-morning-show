@@ -96,6 +96,46 @@ there is a path-scoped allowlist for `assets/rig/index.html` in
 `~/.config/gitleaks/gitleaks.toml` (this machine only; a new box needs it
 too or the commit hook blocks).
 
+## The explainer — "clawd, explain this thread" (2026-08-23)
+
+Second show kind, same five stages. `scripts/make-explainer.sh <tweet url|id>
+["what was asked"]` → `scripts/fetch-thread.mjs` reads the tweet, follows a
+retweet to its original, walks the reply chain up to the root, pulls the
+author's own continuation (`conversation_id:… from:author`), the quoted
+tweet, and the top replies (`THREAD_REPLIES`, default 30; mention-only /
+<40-char replies dropped) — all through **clawd-twitter's `lib/clients.js`
+bearer token** (imported across repos; nothing there is edited; reads bill
+~$0.005/post, ~40 per run). It writes `out/work-x-<rootid>/brief.md` **in the
+digest's own shape** (`> @author's thread, explained`, `## the thread` with
+the full text as blurb + one bullet per tweet, `## what it quotes`,
+`## the replies`), so `digest_parse.py`, the cards and the comp run
+unchanged. Then `SHOW_KIND=explainer SHOW_DATE=x-<rootid> make-show.sh
+brief.md` → `out/show-x-<rootid>.mp4`, 45–80s, and "suggested reply:
+tl;dr of this thread 🦞" on stdout.
+
+What `SHOW_KIND=explainer` switches: the prompt (`prompts/explainer.md` —
+intro line in clawd's words, story×1–3 = tl;dr / eli5 / what the replies
+add, fixed outro "that's the tl;dr. the thread's linked below."), the
+validator (1–3 stories, 0 headlines, 110–200 words), `MIN_AUDIO_S=20`
+(stage 2's truncation guard assumes a 2-min show), and the frame text
+(`FRAME_TITLE="clawd explains"`, `FRAME_SUB=<the > line>`; the ticker gets
+the thread link instead of the headline). The slop regex applies to both
+kinds. Re-running the wrapper re-fetches (cheap) but keeps the old
+`brief.md` when only the fetched-at line changed, so nothing downstream
+rebuilds (verified: 1s, no claude/TTS call).
+
+**Contract for clawd-twitter's tag handler** (not built there yet):
+```
+cd ../clawd-morning-show && ./scripts/make-explainer.sh <url> "<the ask>"
+# → out/show-x-<rootid>.mp4 ; exit ≠0 = no video, reply with text instead
+# then: node scripts/reply-video.js <tweetid> <mp4> "tl;dr of this thread 🦞"
+```
+Same box, same env as the 7:40 job; ~75s wall clock; one ElevenLabs call
+(~200 words); `pick_account.py` picks the claude login. The handler's only
+jobs: decide the tag is a real ask, pass the URL and the ask text, and post
+the reply. Output is keyed by the ROOT tweet id, so two people tagging the
+same thread share one build.
+
 ## Pipeline — stages, contracts, knobs
 
 All stages `set -euo pipefail`, skip when their output is newer than their

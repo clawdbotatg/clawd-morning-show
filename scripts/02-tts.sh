@@ -84,5 +84,5 @@ check_ffmpeg
 DUR="$(media_duration "$OUT")"
 log "wrote $OUT (${DUR%.*}s) + $WORDS"
 awk -v d="$DUR" 'BEGIN{exit !(d>140)}' && die "audio is ${DUR%.*}s — over the 2:20 X cap; tighten the script (FORCE=1 to re-run stage 1)"
-awk -v d="$DUR" 'BEGIN{exit !(d<45)}' && die "audio is only ${DUR%.*}s — TTS likely truncated"
+awk -v d="$DUR" -v m="${MIN_AUDIO_S:-45}" 'BEGIN{exit !(d<m)}' && die "audio is only ${DUR%.*}s — TTS likely truncated"
 exit 0

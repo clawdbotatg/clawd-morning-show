@@ -17,7 +17,9 @@ command -v claude >/dev/null || die "claude CLI not on PATH"
 mkdir -p "$WORK"
 python3 "$ROOT/scripts/digest_parse.py" "$DIGEST" "$STORIES"
 # script.json + script.txt land in the same second, so never `-nt` one against the other
-[ -s "$TXT" ] && skip_if_fresh "$OUT" "$DIGEST" && skip_if_fresh "$OUT" "$ROOT/prompts/host.md" && exit 0
+KIND="${SHOW_KIND:-morning}"
+case "$KIND" in explainer) PROMPT="$ROOT/prompts/explainer.md";; *) PROMPT="$ROOT/prompts/host.md";; esac
+[ -s "$TXT" ] && skip_if_fresh "$OUT" "$DIGEST" && skip_if_fresh "$OUT" "$PROMPT" && exit 0
 
 scrub_claude_env
 
@@ -36,7 +38,7 @@ run_pass() { # $1 = extra instruction (may be empty) -> raw model output
   local d out
   for d in "${ACCOUNTS[@]}"; do
     if [ -n "$d" ]; then export CLAUDE_CONFIG_DIR="$d"; else unset CLAUDE_CONFIG_DIR; fi
-    out="$({ cat "$ROOT/prompts/host.md"
+    out="$({ cat "$PROMPT"
       [ -n "$1" ] && printf '\nEXTRA INSTRUCTION: %s\n' "$1"
       printf '\n--- TODAY'\''S DIGEST ---\n'
       cat "$DIGEST"
@@ -54,8 +56,9 @@ run_pass() { # $1 = extra instruction (may be empty) -> raw model output
 # validate + normalize the model's JSON against the digest; prints a one-line
 # problem description on failure, the word count on success
 validate() { # reads $WORK/script.raw -> writes $OUT + $TXT
-  python3 - "$STORIES" "$OUT" "$TXT" "$WORK/script.raw" "$HEADLINE_BREAK_S" <<'PY'
+  python3 - "$STORIES" "$OUT" "$TXT" "$WORK/script.raw" "$HEADLINE_BREAK_S" "$KIND" <<'PY'
 import json, re, sys
+KIND = sys.argv[6]
 raw = open(sys.argv[4]).read().strip()
 raw = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw)          # tolerate fences
 m = re.search(r"\{[\s\S]*\}", raw)
@@ -74,8 +77,12 @@ if kinds[0] != "intro" or kinds[-1] != "outro" or any(k not in ("story", "headli
     sys.exit(f"segment kinds must be intro, story…, headline…, outro — got {kinds}")
 ns, nh = mid.count("story"), mid.count("headline")
 if mid != ["story"] * ns + ["headline"] * nh: sys.exit("all stories must come before the headlines")
-if ns != 3: sys.exit(f"need exactly 3 stories, got {ns}")
-if not 8 <= nh <= 13: sys.exit(f"need 10-12 headlines, got {nh}")
+if KIND == "explainer":   # intro, story×1–3 (tl;dr, eli5, replies), outro — no headline run
+    if not 1 <= ns <= 3: sys.exit(f"explainer needs 1-3 stories, got {ns}")
+    if nh: sys.exit(f"explainer has no headline segments, got {nh}")
+else:
+    if ns != 3: sys.exit(f"need exactly 3 stories, got {ns}")
+    if not 8 <= nh <= 13: sys.exit(f"need 10-12 headlines, got {nh}")
 for s in segs:
     text = str(s.get("text", "")).strip()
     if not text: sys.exit("empty segment text")
@@ -115,14 +122,19 @@ if WORDS="$(validate 2>&1)"; then :; else
 fi
 log "draft: $WORDS words"
 
-if [ "$WORDS" -gt 310 ] || [ "$WORDS" -lt 200 ]; then
+# word budget per kind: lo/hi trigger one corrective pass; min/max are hard
+case "$KIND" in
+  explainer) LO=80;  HI=230; MIN=50;  MAX=260; WANT="110-200 words total, 1-3 stories, no headlines";;
+  *)         LO=200; HI=310; MIN=150; MAX=340; WANT="250-290 words total, same shape (3 stories, then 10-12 one-sentence headlines)";;
+esac
+if [ "$WORDS" -gt "$HI" ] || [ "$WORDS" -lt "$LO" ]; then
   log "out of range ($WORDS words) — one corrective pass"
-  run_pass "Your previous draft was $WORDS words. The script MUST be 250-290 words total. Rewrite tighter, same JSON format and the same shape (3 stories, then 10-12 one-sentence headlines)." > "$WORK/script.raw"
+  run_pass "Your previous draft was $WORDS words. The script MUST be $WANT. Rewrite, same JSON format." > "$WORK/script.raw"
   WORDS="$(validate 2>&1)" || die "script pass invalid after length retry: $WORDS"
   log "retry: $WORDS words"
 fi
-[ "$WORDS" -ge 150 ] || die "script pass returned $WORDS words — claude -p likely failed"
-[ "$WORDS" -le 340 ] || die "script is $WORDS words even after retry — at ~150 wpm that blows the 2:20 video cap"
+[ "$WORDS" -ge "$MIN" ] || die "script pass returned $WORDS words — claude -p likely failed"
+[ "$WORDS" -le "$MAX" ] || die "script is $WORDS words even after retry — over the $KIND budget"
 log "wrote $OUT + $TXT ($WORDS words, $(python3 -c "
 import json,sys; k=[s['kind'] for s in json.load(open(sys.argv[1]))['segments']]
 print(k.count('story'),'stories +',k.count('headline'),'headlines')" "$OUT"))"

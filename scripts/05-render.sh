@@ -34,12 +34,16 @@ SHOW_DATE="${SHOW_DATE:-$(date +%F)}"
 NICE_DATE="$(date -j -f %Y-%m-%d "$SHOW_DATE" '+%A, %B %-d, %Y' 2>/dev/null || date '+%A, %B %-d, %Y')"
 
 # ---- background card (pure black so the avatar clip merges edgeless) ----
-if [ ! -s "$FRAME" ] || [ "${FORCE:-0}" = "1" ]; then
-  log "frame: $NICE_DATE"
-  printf '%s' "$NICE_DATE" > "$WORK/date.txt"
+# FRAME_TITLE / FRAME_SUB override the "clawd morning show" / date lines
+# (the explainer sets "clawd explains" / "@author's thread, explained").
+TITLE="${FRAME_TITLE:-clawd morning show}"; SUB="${FRAME_SUB:-$NICE_DATE}"
+if [ ! -s "$FRAME" ] || [ "${FORCE:-0}" = "1" ] || [ "$(cat "$WORK/date.txt" 2>/dev/null)" != "$SUB" ]; then
+  log "frame: $TITLE / $SUB"
+  printf '%s' "$TITLE" > "$WORK/title.txt"
+  printf '%s' "$SUB" > "$WORK/date.txt"
   "$FFMPEG" -hide_banner -loglevel error -y -f lavfi -i "color=c=0x000000:s=1280x720" \
     -vf "\
-drawtext=fontfile='$FONT':text='clawd morning show':fontcolor=0x66FF66:fontsize=46:x=(w-text_w)/2:y=34,\
+drawtext=fontfile='$FONT':textfile='$WORK/title.txt':fontcolor=0x66FF66:fontsize=46:x=(w-text_w)/2:y=34,\
 drawtext=fontfile='$FONT':textfile='$WORK/date.txt':fontcolor=0x33AA44:fontsize=24:x=(w-text_w)/2:y=96" \
     -frames:v 1 "$FRAME"
 fi

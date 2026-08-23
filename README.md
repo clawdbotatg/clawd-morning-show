@@ -68,6 +68,19 @@ three files, so `chatting_1` is also `BUILDING`, which loops.) Needs
 an ffmpeg with libass/freetype (`brew install ffmpeg-full` — the plain brew
 bottle dropped them). Scheduling + posting are clawd-twitter's job (see below).
 
+## "clawd, explain this"
+
+```
+./scripts/make-explainer.sh https://x.com/<user>/status/<id> "explain this"
+# -> out/show-x-<rootid>.mp4 (45–80s): tl;dr, then the eli5, then what the
+#    replies add — over the thread's own tweets on the stage card
+```
+
+Reads the thread through clawd-twitter's X client (`scripts/fetch-thread.mjs`),
+writes it as a digest-shaped `brief.md`, and runs the same five stages with
+`SHOW_KIND=explainer` (`prompts/explainer.md`). Posting the reply is
+clawd-twitter's (`reply-video.js`); the tag → video hookup isn't wired yet.
+
 ## Status
 
 Ship order:
