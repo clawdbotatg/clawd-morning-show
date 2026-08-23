@@ -18,7 +18,7 @@ mkdir -p "$WORK"
 python3 "$ROOT/scripts/digest_parse.py" "$DIGEST" "$STORIES"
 # script.json + script.txt land in the same second, so never `-nt` one against the other
 KIND="${SHOW_KIND:-morning}"
-case "$KIND" in explainer) PROMPT="$ROOT/prompts/explainer.md";; *) PROMPT="$ROOT/prompts/host.md";; esac
+case "$KIND" in explainer) PROMPT="$ROOT/prompts/explainer.md";; topic) PROMPT="$ROOT/prompts/explainer-topic.md";; *) PROMPT="$ROOT/prompts/host.md";; esac
 [ -s "$TXT" ] && skip_if_fresh "$OUT" "$DIGEST" && skip_if_fresh "$OUT" "$PROMPT" && exit 0
 
 scrub_claude_env
@@ -77,9 +77,10 @@ if kinds[0] != "intro" or kinds[-1] != "outro" or any(k not in ("story", "headli
     sys.exit(f"segment kinds must be intro, story…, headline…, outro — got {kinds}")
 ns, nh = mid.count("story"), mid.count("headline")
 if mid != ["story"] * ns + ["headline"] * nh: sys.exit("all stories must come before the headlines")
-if KIND == "explainer":   # intro, story×1–3 (tl;dr, eli5, replies), outro — no headline run
-    if not 1 <= ns <= 3: sys.exit(f"explainer needs 1-3 stories, got {ns}")
-    if nh: sys.exit(f"explainer has no headline segments, got {nh}")
+if KIND in ("explainer", "topic"):   # intro, story×N, outro — no headline run
+    hi = 3 if KIND == "explainer" else 4
+    if not 1 <= ns <= hi: sys.exit(f"{KIND} needs 1-{hi} stories, got {ns}")
+    if nh: sys.exit(f"{KIND} has no headline segments, got {nh}")
 else:
     if ns != 3: sys.exit(f"need exactly 3 stories, got {ns}")
     if not 8 <= nh <= 13: sys.exit(f"need 10-12 headlines, got {nh}")
@@ -125,6 +126,7 @@ log "draft: $WORDS words"
 # word budget per kind: lo/hi trigger one corrective pass; min/max are hard
 case "$KIND" in
   explainer) LO=80;  HI=230; MIN=50;  MAX=260; WANT="110-200 words total, 1-3 stories, no headlines";;
+  topic)     LO=100; HI=240; MIN=60;  MAX=270; WANT="120-220 words total, 2-4 stories, no headlines";;
   *)         LO=200; HI=310; MIN=150; MAX=340; WANT="250-290 words total, same shape (3 stories, then 10-12 one-sentence headlines)";;
 esac
 if [ "$WORDS" -gt "$HI" ] || [ "$WORDS" -lt "$LO" ]; then

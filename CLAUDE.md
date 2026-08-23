@@ -252,6 +252,21 @@ ticker, and prints the suggested tweet. Hard cuts everywhere on purpose
 (that's the rig's look); there is no animation yet. A typical show is now
 ~115s: 3 stories hold ~15–18s each, headlines ~4–6s each.
 
+## The topic kind (2026-08-23) — "what is X", researched
+
+`SHOW_KIND=topic` is the third kind: same five stages, `prompts/
+explainer-topic.md` (intro → 2–4 teaching stories → "that's the gist"
+outro, 120–220 words), frame "clawd explains / what X is", ticker = the
+primary-source link in the brief intro. The brief is NOT fetched here —
+clawd-twitter's `scripts/explainer.sh` runs a claude -p research pass
+(WebSearch/WebFetch) that writes a digest-shaped `topic-brief.md` about the
+actual subject, with web sources as the `- [@label](url): fact` lines
+(labels are `[A-Za-z0-9_]+` — no dots, `digest_parse.py`'s TWEET regex).
+Austin's rule that forced it: a tag asking "what is omarchy" got a video
+about the thread's replies; the thread is a pointer, the subject is the
+content. `make-explainer.sh` (thread tl;dr) stays for literal
+"tl;dr this thread" asks.
+
 ## Input contract — the real digest.md
 
 `samples/digest.md` is in the **real** format `clawd-morning-update`
