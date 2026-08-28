@@ -230,6 +230,19 @@ and the timeline constants (`INTRO_S=2`, `OUTRO_S=3`, `MOUTH_LAG_S=0`) are in
    940,360,300 PIP) are duplicated in `render_bg.mjs` and must match 05's
    overlay coords. Uniform-array gotcha: vgpu packs `array<vec4f,16>` only
    from 16 nested [x,y,z,w] arrays, not a flat Float32Array(64).
+   **Price sparklines** (same day): `fetch_prices.mjs` pulls 24h series —
+   btc + eth from CoinGecko (keyless; 429 burst limit → one 20s retry;
+   testing loops WILL trip it, the daily run won't), $CLAWD on Base from
+   GeckoTerminal (token 0x9f86dB…6b07, deepest-reserve pool discovery with a
+   hardcoded fallback) → `work/prices.json` + `tick-*.txt`, stale files
+   cleared first so a failed coin never wears yesterday's label. Shader
+   draws them in fixed top-corner rects (btc/eth stacked left, $CLAWD
+   featured right — `SPARK_RECTS`, clear of the centered title and the
+   y≥140 card zone; the voice waveform is x-tapered to the center band to
+   stay out of their way); labels are burned by a second ffmpeg drawtext
+   pass in 04b (`expansion=none` — a trailing % in the label is drawtext
+   expansion syntax otherwise). Every piece optional: fetch failure = fewer
+   sparklines, label-pass failure = unlabeled bg, all still exit 0.
 5. **`05-render.sh`** the comp, one filter graph read from `show.filter`
    (`-/filter_complex` on ffmpeg ≥7 — ffmpeg 8 removed
    `-filter_complex_script`, and brew's `ffmpeg-full` is 9; the old flag is

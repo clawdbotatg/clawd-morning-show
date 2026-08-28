@@ -56,11 +56,38 @@ for (let f = 0; f < frames; f++) {
 const rectFull = [360 / W, 160 / H, 560 / W, 560 / H];
 const rectPip = [940 / W, 360 / H, 300 / W, 300 / H];
 
+// ---- price sparklines (fetch_prices.mjs → prices.json; all optional) ----
+// three fixed slots in the top corners, clear of the centered title and the
+// story card zone (y≥140): btc / eth stacked left, $CLAWD featured right.
+// Series are normalized to 0..1 here; a missing/flat series draws nothing.
+const SPARK_RECTS = [
+  [36 / W, 28 / H, 300 / W, 56 / H],   // btc
+  [36 / W, 84 / H, 300 / W, 112 / H],  // eth
+  [980 / W, 28 / H, 1244 / W, 88 / H], // $CLAWD (x0,y0,x1,y1)
+];
+const sparkFlags = [0, 0, 0, 0];
+const sparkData = new Float32Array(144); // 3 series × 48 samples
+try {
+  const prices = JSON.parse(readFileSync(join(WORK, "prices.json"), "utf8"));
+  ["btc", "eth", "clawd"].forEach((k, s) => {
+    const ser = prices[k] && prices[k].series;
+    if (!ser || ser.length !== 48) return;
+    const mn = Math.min(...ser), mx = Math.max(...ser);
+    if (!(mx > mn)) return;
+    const pad = (mx - mn) * 0.12;
+    for (let i = 0; i < 48; i++) sparkData[s * 48 + i] = (ser[i] - mn + pad) / (mx - mn + 2 * pad);
+    sparkFlags[s] = 1;
+  });
+} catch { /* no prices.json — no sparklines */ }
+const sparkVecs = () => Array.from({ length: 36 }, (_, i) => [sparkData[i * 4], sparkData[i * 4 + 1], sparkData[i * 4 + 2], sparkData[i * 4 + 3]]);
+
 const shader = /* wgsl */ `
   struct Params {
     time: f32, level: f32, aspect: f32, pad: f32,
     rect: vec4f,
+    sparkflags: vec4f,
     hist: array<vec4f, 16>,
+    sparks: array<vec4f, 36>,
   }
   @group(0) @binding(0) var<uniform> params: Params;
 
@@ -71,6 +98,18 @@ const shader = /* wgsl */ `
   fn sdRoundRect(p: vec2f, half: vec2f, r: f32) -> f32 {
     let q = abs(p) - half + vec2f(r);
     return length(max(q, vec2f(0.0))) + min(max(q.x, q.y), 0.0) - r;
+  }
+
+  fn sparkRect(s: i32) -> vec4f { // x0,y0,x1,y1 — mirror of SPARK_RECTS in JS
+    if (s == 0) { return vec4f(${SPARK_RECTS[0].join(", ")}); }
+    if (s == 1) { return vec4f(${SPARK_RECTS[1].join(", ")}); }
+    return vec4f(${SPARK_RECTS[2].join(", ")});
+  }
+
+  fn sparkColor(s: i32) -> vec3f {
+    if (s == 0) { return vec3f(0.85, 0.52, 0.12); } // btc amber
+    if (s == 1) { return vec3f(0.42, 0.52, 0.88); } // eth blue-violet
+    return vec3f(0.22, 0.85, 0.45);                 // $CLAWD house green
   }
 
   @fragment fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
@@ -104,14 +143,44 @@ const shader = /* wgsl */ `
     // voice waveform ribbon. The title ("clawd morning show", y 34..80) and
     // date (y 96..120) drawtext over this band; the ribbon is dim enough to
     // read as a scope glow under the header — checked on frames, not guessed.
+    // Tapered to the center band so the corner sparklines own the corners.
     let wy = 0.085;
     let idx = clamp(i32(uv.x * 63.0), 0, 63);
     let h = params.hist[idx / 4][idx % 4];
     let amp = 0.003 + h * 0.075;
     let dy = abs(uv.y - wy);
-    let wave = smoothstep(amp, amp * 0.15, dy);
+    let taper = smoothstep(0.25, 0.32, uv.x) * (1.0 - smoothstep(0.68, 0.75, uv.x));
+    let wave = smoothstep(amp, amp * 0.15, dy) * taper;
     col += vec3f(0.10, 0.42, 0.24) * wave * (0.15 + 0.85 * h) * 0.55;
-    col += vec3f(0.05, 0.20, 0.12) * smoothstep(0.09, 0.0, dy) * (0.05 + 0.25 * h) * 0.55;
+    col += vec3f(0.05, 0.20, 0.12) * smoothstep(0.09, 0.0, dy) * (0.05 + 0.25 * h) * 0.55 * taper;
+
+    // price sparklines (btc / eth / $CLAWD): glowing polyline + soft area
+    // fill in fixed corner rects; the last point pulses with the voice.
+    for (var s = 0; s < 3; s++) {
+      if (params.sparkflags[s] < 0.5) { continue; }
+      let r = sparkRect(s);
+      let gx0 = r.x; let gy0 = r.y; let gx1 = r.z; let gy1 = r.w;
+      if (uv.x < gx0 - 0.004 || uv.x > gx1 + 0.008 || uv.y < gy0 - 0.02 || uv.y > gy1 + 0.02) { continue; }
+      let tx = clamp((uv.x - gx0) / (gx1 - gx0), 0.0, 1.0);
+      let fi = tx * 47.0;
+      let i0 = clamp(i32(fi), 0, 46);
+      let fr = fi - f32(i0);
+      let base = s * 48;
+      let a = params.sparks[(base + i0) / 4][(base + i0) % 4];
+      let b = params.sparks[(base + i0 + 1) / 4][(base + i0 + 1) % 4];
+      let v = mix(a, b, fr);
+      let ly = gy1 - v * (gy1 - gy0);
+      let sc = sparkColor(s);
+      let d = abs(uv.y - ly);
+      col += sc * smoothstep(0.005, 0.0008, d);                       // line
+      col += sc * exp(-d * 220.0) * 0.30;                             // glow
+      if (uv.y > ly && uv.y < gy1 + 0.01) {                           // area fill
+        col += sc * 0.05 * (1.0 - (uv.y - ly) / (gy1 - gy0 + 0.01));
+      }
+      let lastV = params.sparks[(base + 47) / 4][(base + 47) % 4];
+      let pe = length(vec2f((uv.x - gx1) * params.aspect, uv.y - (gy1 - lastV * (gy1 - gy0))));
+      col += sc * exp(-pe * 420.0) * (0.5 + 0.8 * lvl);               // live dot
+    }
 
     // avatar stage panel: pure black interior + glowing border
     let rc = params.rect;
@@ -135,7 +204,7 @@ const t = target(gpu, { size: [W, H] });
 const hist = new Float32Array(64);
 const histVecs = () => Array.from({ length: 16 }, (_, i) => [hist[i * 4], hist[i * 4 + 1], hist[i * 4 + 2], hist[i * 4 + 3]]);
 const fx = effect(gpu, shader, {
-  set: { params: { time: 0, level: 0, aspect: W / H, pad: 0, rect: rectFull, hist: histVecs() } },
+  set: { params: { time: 0, level: 0, aspect: W / H, pad: 0, rect: rectFull, sparkflags: sparkFlags, hist: histVecs(), sparks: sparkVecs() } },
 });
 
 const ff = spawn(FFMPEG, [
@@ -152,7 +221,7 @@ for (let f = 0; f < frames; f++) {
   hist.copyWithin(0, 1);
   hist[63] = levels[f];
   const inPip = pipS >= 0 && time >= pipS && time < pipE;
-  fx.set({ params: { time, level: levels[f], rect: inPip ? rectPip : rectFull, hist: histVecs() } });
+  fx.set({ params: { time, level: levels[f], rect: inPip ? rectPip : rectFull, hist: histVecs() } }); // sparks are static — set once at init
   fx.draw(t);
   const pixels = await t.read();
   if (!ff.stdin.write(Buffer.from(pixels))) {

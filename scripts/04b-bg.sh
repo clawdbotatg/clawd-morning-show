@@ -28,6 +28,11 @@ skip_if_fresh "$WORK/bg.mp4" "$WORK/plan.json" && exit 0
 check_ffmpeg
 rm -f "$WORK/bg.mp4"
 
+# price sparklines (btc/eth/$CLAWD) — optional input to the render; a fetch
+# failure just means fewer (or no) sparklines. Never blocks the show.
+node "$ROOT/scripts/fetch_prices.mjs" "$WORK" >> "$WORK/bg-prices.log" 2>&1 || \
+  log "price fetch failed — rendering without sparklines"
+
 # watchdog: a hung GPU render at 7:40am must not stall the show into the gm
 # window. 180s is ~15x the measured render time for a full 2:20 show.
 node "$ROOT/scripts/render_bg.mjs" "$WORK" > "$WORK/bg.log" 2>&1 &
@@ -50,5 +55,25 @@ if [ "$BG_OK" = "1" ] && [ -s "$WORK/bg.mp4" ]; then
 else
   log "vgpu bg FAILED — show falls back to black (see $WORK/bg.log)"
   rm -f "$WORK/bg.mp4"
+  exit 0
+fi
+
+# label pass: burn the sparkline price labels into bg.mp4 (Monaco, colors
+# matching the shader's lines). Optional like everything here — on failure
+# the unlabeled bg is kept. Coordinates pair with SPARK_RECTS in render_bg.mjs.
+FONT="$(find_font)"
+LABELS=""
+[ -s "$WORK/tick-btc.txt" ]   && LABELS="${LABELS}drawtext=fontfile='$FONT':textfile=tick-btc.txt:fontcolor=0xD98F33:fontsize=15:x=36:y=62:shadowcolor=black:shadowx=1:shadowy=1:expansion=none,"
+[ -s "$WORK/tick-eth.txt" ]   && LABELS="${LABELS}drawtext=fontfile='$FONT':textfile=tick-eth.txt:fontcolor=0x8093DD:fontsize=15:x=36:y=118:shadowcolor=black:shadowx=1:shadowy=1:expansion=none,"
+[ -s "$WORK/tick-clawd.txt" ] && LABELS="${LABELS}drawtext=fontfile='$FONT':textfile=tick-clawd.txt:fontcolor=0x66E699:fontsize=15:x=980:y=94:shadowcolor=black:shadowx=1:shadowy=1:expansion=none,"
+if [ -n "$LABELS" ]; then
+  if ( cd "$WORK" && "$FFMPEG" -hide_banner -loglevel error -y -i bg.mp4 \
+        -vf "${LABELS%,}" -c:v libx264 -pix_fmt yuv420p -crf 18 bg.labeled.mp4 ); then
+    mv "$WORK/bg.labeled.mp4" "$WORK/bg.mp4"
+    log "sparkline labels: $(cat "$WORK"/tick-*.txt 2>/dev/null | tr '\n' ' ')"
+  else
+    rm -f "$WORK/bg.labeled.mp4"
+    log "label pass failed — keeping unlabeled bg"
+  fi
 fi
 exit 0
