@@ -215,6 +215,21 @@ and the timeline constants (`INTRO_S=2`, `OUTRO_S=3`, `MOUTH_LAG_S=0`) are in
    `chrome-headless-shell-mac[-arm64]/chrome-headless-shell` layout, the only
    one a current `npx playwright install` leaves; uiprobe still lacks it).
    `playwright-core` via `package.json`; no network.
+4b. **`04b-bg.sh`** (OPTIONAL, added 2026-08-28) → `render_bg.mjs`: animated
+   background via **vgpu** (headless WebGPU on the machine's GPU, Dawn/Metal —
+   see clawd-research/vgpu/) → `work/bg.mp4`. Scrolling floor grid,
+   voice-reactive waveform + horizon glow (per-frame RMS off the voice track,
+   shifted by `INTRO_S`), and a black stage panel with a glowing border that
+   tracks the avatar's full↔PIP rects from `plan.json` layout.pip — the
+   avatar clips are on pure black, so on an animated bg the panel makes the
+   square read as set design. **This stage must never fail the pipeline**:
+   any error (no node_modules, no GPU, crash) or a 180s watchdog timeout →
+   warn, delete bg.mp4, exit 0 → 05 renders the classic black show.
+   `VGPU_BG=0` opts out. Renders a full 2-min show bg in ~6s on an M-series
+   GPU. Debug: `work/bg.log`. The avatar rects (360,160,560 full /
+   940,360,300 PIP) are duplicated in `render_bg.mjs` and must match 05's
+   overlay coords. Uniform-array gotcha: vgpu packs `array<vec4f,16>` only
+   from 16 nested [x,y,z,w] arrays, not a flat Float32Array(64).
 5. **`05-render.sh`** the comp, one filter graph read from `show.filter`
    (`-/filter_complex` on ffmpeg ≥7 — ffmpeg 8 removed
    `-filter_complex_script`, and brew's `ffmpeg-full` is 9; the old flag is
@@ -232,6 +247,12 @@ and the timeline constants (`INTRO_S=2`, `OUTRO_S=3`, `MOUTH_LAG_S=0`) are in
    - **Sync self-check**: measures the voice onset in the *rendered mp4*
      (silencedetect) against the first chatting cut in `plan.json` and dies
      if they differ by >0.15s. It caught the loudnorm bug. Keep it.
+   - **Base layer** (2026-08-28): `work/bg.mp4` from stage 4b when present
+     (`-stream_loop -1`, title/sub drawn in-graph from title.txt/date.txt —
+     same font/colors/coords as frame.png, so FRAME_TITLE/FRAME_SUB hold),
+     else `frame.png` exactly as before. If the render WITH bg fails, 05
+     logs and retries once without it before dying. A fresh bg.mp4 also
+     un-skips 05 (`BG_STALE`).
    - Needs an ffmpeg with libass + freetype. brew's plain `ffmpeg` bottle
      dropped them (no `subtitles`, no `drawtext`); **`ffmpeg-full`** is
      keg-only at `/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg` and `check_ffmpeg`

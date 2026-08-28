@@ -48,7 +48,13 @@ drawtext=fontfile='$FONT':textfile='$WORK/date.txt':fontcolor=0x33AA44:fontsize=
     -frames:v 1 "$FRAME"
 fi
 
-if skip_if_fresh "$OUT" "$ASS" && skip_if_fresh "$OUT" "$AUDIO"; then exit 0; fi
+# older workdirs predate title.txt; the bg base chain drawtexts from it
+[ -s "$WORK/title.txt" ] || printf '%s' "$TITLE" > "$WORK/title.txt"
+
+# a fresh bg.mp4 (stage 4b) must retrigger the comp like any other input
+BG_STALE=0
+[ -s "$WORK/bg.mp4" ] && [ "$WORK/bg.mp4" -nt "$OUT" ] && BG_STALE=1
+if [ "$BG_STALE" = "0" ] && skip_if_fresh "$OUT" "$ASS" && skip_if_fresh "$OUT" "$AUDIO"; then exit 0; fi
 
 # ---- loudness-normalize as a PRE-PASS to wav. loudnorm emits NOPTS frames;
 # chained straight into adelay it left the first chunk of audio at t=0 while
@@ -93,33 +99,60 @@ else
 fi
 PIP_ON="between(t,$PIP_S,$PIP_E)"
 
-# full graph: avatar chain from the plan, then full/PIP avatar, cards, ticker, captions, audio
-{ cat "$WORK/avatar.filter"; printf ';\n'
-  printf '%s\n' "[avatar]split[avA][avB];[avA]scale=560:560[full];[avB]scale=300:300[pip];\
-[0:v][full]overlay=360:160:enable='not($PIP_ON)'[c0];\
-[c0][pip]overlay=940:360:enable='$PIP_ON'[c1];\
-${CARD_CHAIN}\
-[$LAST_LABEL]drawtext=fontfile='$FONT':textfile=lower3.txt:fontcolor=0x99DDAA:fontsize=20:x=(w-text_w)/2:y=684:box=1:boxcolor=0x081008@0.85:boxborderw=12,subtitles=captions.ass,format=yuv420p[v];\
-[1:a]adelay=${DELAY_MS}:all=1,apad[aud]"
-} > "$WORK/show.filter"
-
 # ffmpeg 8 removed -filter_complex_script; >=7 reads any option from a file via -/opt
 FF_MAJOR="$("$FFMPEG" -version | sed -nE '1s/^ffmpeg version n?([0-9]+).*/\1/p')"
 if [ "${FF_MAJOR:-0}" -ge 7 ]; then FILTER_OPT=(-/filter_complex show.filter); else FILTER_OPT=(-filter_complex_script show.filter); fi
 
-log "render: $OUT (${TOTAL%.*}s total, ffmpeg ${FF_MAJOR:-?})"
+# ---- base layer: stage 4b's animated bg.mp4 when present, else the black
+# branded frame (exactly the pre-4b show). With bg.mp4 the title/sub that
+# frame.png bakes in are drawn in-graph instead — same font, colors, coords,
+# same title.txt/date.txt (so the explainer's FRAME_TITLE/FRAME_SUB hold).
+# If the render WITH bg fails for any reason, retry once without it.
+build_graph_and_render() { # $1 = use_bg (1|0)
+  local use_bg="$1" base_chain base_label
+  if [ "$use_bg" = "1" ]; then
+    base_chain="[0:v]drawtext=fontfile='$FONT':textfile=title.txt:fontcolor=0x66FF66:fontsize=46:x=(w-text_w)/2:y=34,drawtext=fontfile='$FONT':textfile=date.txt:fontcolor=0x33AA44:fontsize=24:x=(w-text_w)/2:y=96[base];"
+    base_label="base"
+  else
+    base_chain=""
+    base_label="0:v"
+  fi
+  { cat "$WORK/avatar.filter"; printf ';\n'
+    printf '%s\n' "${base_chain}[avatar]split[avA][avB];[avA]scale=560:560[full];[avB]scale=300:300[pip];\
+[$base_label][full]overlay=360:160:enable='not($PIP_ON)'[c0];\
+[c0][pip]overlay=940:360:enable='$PIP_ON'[c1];\
+${CARD_CHAIN}\
+[$LAST_LABEL]drawtext=fontfile='$FONT':textfile=lower3.txt:fontcolor=0x99DDAA:fontsize=20:x=(w-text_w)/2:y=684:box=1:boxcolor=0x081008@0.85:boxborderw=12,subtitles=captions.ass,format=yuv420p[v];\
+[1:a]adelay=${DELAY_MS}:all=1,apad[aud]"
+  } > "$WORK/show.filter"
+
+  local base_input=(-framerate 24 -loop 1 -i frame.png)
+  [ "$use_bg" = "1" ] && base_input=(-stream_loop -1 -i bg.mp4)
+
+  ( cd "$WORK" && "$FFMPEG" -hide_banner -loglevel error -y \
+    "${base_input[@]}" \
+    -i voice.norm.wav \
+    -stream_loop -1 -i "$IDLE1" -stream_loop -1 -i "$IDLE2" -stream_loop -1 -i "$CHAT" \
+    "${CARD_INPUTS[@]}" \
+    "${FILTER_OPT[@]}" \
+    -map "[v]" -map "[aud]" -t "$TOTAL" -r 24 \
+    -c:v libx264 -preset medium -crf 21 -c:a aac -b:a 128k \
+    -movflags +faststart "$ABS_OUT" )
+}
+
+USE_BG=0
+[ -s "$WORK/bg.mp4" ] && [ "${VGPU_BG:-1}" = "1" ] && USE_BG=1
+
+log "render: $OUT (${TOTAL%.*}s total, ffmpeg ${FF_MAJOR:-?}, bg=$([ "$USE_BG" = "1" ] && echo vgpu || echo black))"
 mkdir -p "$(dirname "$OUT")"
 case "$OUT" in /*) ABS_OUT="$OUT";; *) ABS_OUT="$PWD/$OUT";; esac
 
-( cd "$WORK" && "$FFMPEG" -hide_banner -loglevel error -y \
-  -framerate 24 -loop 1 -i frame.png \
-  -i voice.norm.wav \
-  -stream_loop -1 -i "$IDLE1" -stream_loop -1 -i "$IDLE2" -stream_loop -1 -i "$CHAT" \
-  "${CARD_INPUTS[@]}" \
-  "${FILTER_OPT[@]}" \
-  -map "[v]" -map "[aud]" -t "$TOTAL" -r 24 \
-  -c:v libx264 -preset medium -crf 21 -c:a aac -b:a 128k \
-  -movflags +faststart "$ABS_OUT" )
+if ! build_graph_and_render "$USE_BG"; then
+  [ "$USE_BG" = "1" ] || die "render failed"
+  log "render with vgpu bg FAILED — retrying with the black frame"
+  USE_BG=0
+  build_graph_and_render 0 || die "render failed (even without bg)"
+fi
 
 # ---- sync self-check: voice onset in the FILE vs the first chatting cut ----
 # (measured off the rendered mp4, not the plan — this is what a player sees)

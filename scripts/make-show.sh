@@ -35,6 +35,7 @@ export HEADLINE
 "$ROOT/scripts/02-tts.sh" "$WORK"
 "$ROOT/scripts/03-captions.sh" "$WORK"
 "$ROOT/scripts/04-cards.sh" "$WORK"
+"$ROOT/scripts/04b-bg.sh" "$WORK"   # optional animated bg — never fails the run
 "$ROOT/scripts/05-render.sh" "$WORK" "$OUT"
 
 # ---- suggested tweet (posting is clawd-twitter's job) ----
