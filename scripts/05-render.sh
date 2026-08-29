@@ -87,11 +87,20 @@ if [ "$NCARDS" -gt 0 ]; then
     [ -s "$WORK/cards/card-$i.png" ] || die "missing card $WORK/cards/card-$i.png — run 04-cards.sh"
     CARD_INPUTS+=(-framerate 24 -loop 1 -i "cards/card-$i.png")
   done
+  # card motion (2026-08-29): slide in from the right over the first 0.35s of
+  # the card's window (ease-out), accelerate out left over the last 0.35s
+  # (ease-in). Between those, x parks at 40 — same comp as the old hard cut.
+  # Swaps read as: old card exits left, new card enters from the right.
   CARD_CHAIN="$(python3 -c "
 import json,sys; L=json.load(open(sys.argv[1]))['layout']
+D=0.35
 prev='c1'; out=[]
 for i,s in enumerate(L['cards']):
-    nxt=f'k{i}'; out.append(f\"[{prev}][{5+i}:v]overlay=40:140:enable='between(t,{s['start']},{s['end']})'[{nxt}]\"); prev=nxt
+    nxt=f'k{i}'; a=s['start']; b=s['end']
+    d=min(D,(b-a)/3)  # never let in+out overlap on a very short window
+    x=(f\"if(lt(t,{a}+{d}), 40+1240*pow(1-(t-{a})/{d},2), \"
+       f\"if(gt(t,{b}-{d}), 40-940*pow((t-({b}-{d}))/{d},2), 40))\")
+    out.append(f\"[{prev}][{5+i}:v]overlay=x='{x}':y=140:enable='between(t,{a},{b})'[{nxt}]\"); prev=nxt
 print(';'.join(out)+';' if out else '', end='')" "$WORK/plan.json")"
   LAST_LABEL="k$((NCARDS-1))"
 else
