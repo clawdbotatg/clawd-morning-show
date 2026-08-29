@@ -217,9 +217,14 @@ and the timeline constants (`INTRO_S=2`, `OUTRO_S=3`, `MOUTH_LAG_S=0`) are in
    `playwright-core` via `package.json`; no network.
 4b. **`04b-bg.sh`** (OPTIONAL, added 2026-08-28) → `render_bg.mjs`: animated
    background via **vgpu** (headless WebGPU on the machine's GPU, Dawn/Metal —
-   see clawd-research/vgpu/) → `work/bg.mp4`. Scrolling floor grid,
-   voice-reactive waveform + horizon glow (per-frame RMS off the voice track,
-   shifted by `INTRO_S`), and a black stage panel with a glowing border that
+   see clawd-research/vgpu/) → `work/bg.mp4`. Scrolling floor grid, horizon
+   glow, a full-width voice waveform riding just above the bottom ticker
+   (y≈666 — the one band nothing covers all show; it launched in the top
+   band on 08-28 where the title drawtext buried it, Austin noticed within a
+   day; the ribbon reads RAW per-frame RMS — `punch`, unsmoothed — because
+   the smoothed envelope renders as a flat band, not a waveform; the
+   smoothed `levels` still drive glow/border pulsing; both shifted by
+   `INTRO_S`), and a black stage panel with a glowing border that
    tracks the avatar's full↔PIP rects from `plan.json` layout.pip — the
    avatar clips are on pure black, so on an animated bg the panel makes the
    square read as set design. **This stage must never fail the pipeline**:
@@ -238,8 +243,7 @@ and the timeline constants (`INTRO_S=2`, `OUTRO_S=3`, `MOUTH_LAG_S=0`) are in
    cleared first so a failed coin never wears yesterday's label. Shader
    draws them in fixed top-corner rects (btc/eth stacked left, $CLAWD
    featured right — `SPARK_RECTS`, clear of the centered title and the
-   y≥140 card zone; the voice waveform is x-tapered to the center band to
-   stay out of their way); labels are burned by a second ffmpeg drawtext
+   y≥140 card zone); labels are burned by a second ffmpeg drawtext
    pass in 04b (`expansion=none` — a trailing % in the label is drawtext
    expansion syntax otherwise). Every piece optional: fetch failure = fewer
    sparklines, label-pass failure = unlabeled bg, all still exit 0.

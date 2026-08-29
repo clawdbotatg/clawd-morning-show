@@ -44,10 +44,12 @@ for (let f = 0; f < frames; f++) {
   raw[f] = Math.sqrt(acc / win);
 }
 const peak = [...raw].sort((a, b) => b - a)[Math.floor(frames * 0.02)] || 1;
-const levels = new Float32Array(frames);
+const levels = new Float32Array(frames); // smoothed — drives glow/border pulsing
+const punch = new Float32Array(frames);  // raw-ish — drives the waveform ribbon
 let sm = 0;
 for (let f = 0; f < frames; f++) {
   const v = Math.min(raw[f] / peak, 1);
+  punch[f] = v; // unsmoothed: the ribbon should be jagged, word by word
   sm = v > sm ? sm + (v - sm) * 0.55 : sm + (v - sm) * 0.12; // fast attack, slow decay
   levels[f] = sm;
 }
@@ -140,19 +142,20 @@ const shader = /* wgsl */ `
       col += vec3f(0.35, 0.5, 0.45) * star * tw * smoothstep(0.12, 0.0, dd) * 0.6 * smoothstep(hy, 0.1, uv.y);
     }
 
-    // voice waveform ribbon. The title ("clawd morning show", y 34..80) and
-    // date (y 96..120) drawtext over this band; the ribbon is dim enough to
-    // read as a scope glow under the header — checked on frames, not guessed.
-    // Tapered to the center band so the corner sparklines own the corners.
-    let wy = 0.085;
+    // voice waveform ribbon — full width, riding just above the bottom
+    // ticker (y 662..682): captions end at y≈656 (64px ASS margin), the
+    // ticker box starts at 684, cards end ≈520 and the PIP panel ends at
+    // 660, so this band stays visible for the entire story window. (It
+    // lived in the top band first — the centered title drawtext sat on
+    // top of it and the corner tickers took the rest. Buried; moved.)
+    let wy = 0.925;
     let idx = clamp(i32(uv.x * 63.0), 0, 63);
-    let h = params.hist[idx / 4][idx % 4];
-    let amp = 0.003 + h * 0.075;
+    let h = pow(params.hist[idx / 4][idx % 4], 0.75); // lift the mids — this is display, not measurement
+    let amp = 0.005 + h * 0.058;
     let dy = abs(uv.y - wy);
-    let taper = smoothstep(0.25, 0.32, uv.x) * (1.0 - smoothstep(0.68, 0.75, uv.x));
-    let wave = smoothstep(amp, amp * 0.15, dy) * taper;
-    col += vec3f(0.10, 0.42, 0.24) * wave * (0.15 + 0.85 * h) * 0.55;
-    col += vec3f(0.05, 0.20, 0.12) * smoothstep(0.09, 0.0, dy) * (0.05 + 0.25 * h) * 0.55 * taper;
+    let wave = smoothstep(amp, amp * 0.2, dy);
+    col += vec3f(0.16, 0.62, 0.34) * wave * (0.35 + 1.0 * h);
+    col += vec3f(0.07, 0.28, 0.16) * smoothstep(0.055, 0.0, dy) * (0.10 + 0.40 * h);
 
     // price sparklines (btc / eth / $CLAWD): glowing polyline + soft area
     // fill in fixed corner rects; the last point pulses with the voice.
@@ -219,7 +222,7 @@ const t0 = Date.now();
 for (let f = 0; f < frames; f++) {
   const time = f / FPS;
   hist.copyWithin(0, 1);
-  hist[63] = levels[f];
+  hist[63] = punch[f];
   const inPip = pipS >= 0 && time >= pipS && time < pipE;
   fx.set({ params: { time, level: levels[f], rect: inPip ? rectPip : rectFull, hist: histVecs() } }); // sparks are static — set once at init
   fx.draw(t);
