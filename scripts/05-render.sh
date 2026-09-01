@@ -165,8 +165,12 @@ fi
 
 # ---- sync self-check: voice onset in the FILE vs the first chatting cut ----
 # (measured off the rendered mp4, not the plan — this is what a player sees)
-ONSET="$("$FFMPEG" -hide_banner -i "$OUT" -t 15 -af silencedetect=n=-35dB:d=0.2 -f null - 2>&1 \
-  | sed -nE 's/.*silence_end: ([0-9.]+).*/\1/p' | head -1)"
+measure_onset() { "$FFMPEG" -hide_banner -i "$OUT" -t 15 -af silencedetect=n=-35dB:d=0.2 -f null - 2>&1 \
+  | sed -nE 's/.*silence_end: ([0-9.]+).*/\1/p' | head -1; }
+ONSET="$(measure_onset)"
+# an empty read can be transient (2026-09-01: same command + same file measured
+# fine minutes after failing a run) — retry once before dying
+[ -n "$ONSET" ] || { sleep 2; ONSET="$(measure_onset)"; }
 FIRST_CHAT="$(python3 -c "
 import json,sys; d=json.load(open(sys.argv[1])); t=0
 for s in d['segments']:
