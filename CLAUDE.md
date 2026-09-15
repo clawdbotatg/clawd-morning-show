@@ -373,7 +373,11 @@ to echo and what `render_cards` keys on.
   image, the clip as tweet 2 (`reply-video.js`), the gmsers link as tweet 3,
   then embeds the video atop gmsers.com/<date>. Austin: "no more asking me
   in the morning about anything" — so nothing here may Telegram him on
-  success. A format change in this repo goes live the next morning by
+  success. **The one sanctioned note is the 10pm evening digest** (Austin
+  asked for it 2026-09-15): `clawd-morning-update/scripts/evening-pull.sh`
+  pulls 500 posts, `evening-digest.js` + `prompts/evening.md` summarize what
+  landed, `tg-send.js` delivers it, so he can read tonight what tomorrow's
+  paper and show are built from. A format change in this repo goes live the next morning by
   itself; there is nothing to install. This repo has **no launchd job and no
   posting code**, on purpose (I added a duplicate 7:45 job + Telegram ping
   on 2026-08-22 without checking one repo over; it was ripped out the same
