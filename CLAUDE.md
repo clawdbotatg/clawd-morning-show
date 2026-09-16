@@ -238,8 +238,10 @@ and the timeline constants (`INTRO_S=2`, `OUTRO_S=3`, `MOUTH_LAG_S=0`) are in
    **Price sparklines** (same day): `fetch_prices.mjs` pulls 24h series —
    btc + eth from CoinGecko (keyless; 429 burst limit → one 20s retry;
    testing loops WILL trip it, the daily run won't), $CLAWD on Base from
-   GeckoTerminal (token 0x9f86dB…6b07, deepest-reserve pool discovery with a
-   hardcoded fallback) → `work/prices.json` + `tick-*.txt`, stale files
+   GeckoTerminal (token 0x9f86dB…6b07; candidate pools ranked by 24h VOLUME,
+   top 3 tried in order, the known WETH pool always last — NOT by reserve: a
+   near-dead mmETH/CLAWD pool out-reserved the real one on 09-14 and the
+   chart vanished on 09-16) → `work/prices.json` + `tick-*.txt`, stale files
    cleared first so a failed coin never wears yesterday's label. Shader
    draws them in fixed top-corner rects (btc/eth stacked left, $CLAWD
    featured right — `SPARK_RECTS`, clear of the centered title and the

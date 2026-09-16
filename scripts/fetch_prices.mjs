@@ -1,6 +1,6 @@
 // stage 4b helper: 24h price series for the set's sparklines — btc + eth
 // (CoinGecko, keyless) and $CLAWD on Base (GeckoTerminal, keyless; pool
-// discovered by deepest reserve, hardcoded fallback). Writes:
+// ranked by 24h volume, the known pool always a candidate). Writes:
 //   <workdir>/prices.json          {btc:{series,label}, eth:…, clawd:…}
 //   <workdir>/tick-{btc,eth,clawd}.txt   label text for the drawtext pass
 // PURELY OPTIONAL: any coin that fails is simply omitted; exit is always 0
@@ -63,16 +63,33 @@ async function btc(id, name) {
 }
 
 async function clawd() {
-  let pool = CLAWD_POOL_FALLBACK;
+  // Candidate pools ranked by 24h VOLUME, not reserve: on 2026-09-14 a new
+  // mmETH/CLAWD pool showed a bigger reserve than the real WETH pool but
+  // traded twice a day -> 3 hourly candles -> no sparkline (09-16). The
+  // known pool is always in the list, so a dead top pick just falls through.
+  let pools = [];
   try {
     const d = await get(`https://api.geckoterminal.com/api/v2/networks/base/tokens/${CLAWD_TOKEN}/pools?page=1`);
-    const best = (d.data || [])
-      .sort((a, b) => (+b.attributes.reserve_in_usd || 0) - (+a.attributes.reserve_in_usd || 0))[0];
-    if (best) pool = best.id.replace(/^base_/, "");
+    pools = (d.data || [])
+      .map((p) => ({ id: p.id.replace(/^base_/, ""), vol: +(p.attributes.volume_usd?.h24) || 0 }))
+      .filter((p) => p.vol > 0)
+      .sort((a, b) => b.vol - a.vol)
+      .slice(0, 3)
+      .map((p) => p.id);
   } catch { /* fall back to the known pool */ }
-  const d = await get(`https://api.geckoterminal.com/api/v2/networks/base/pools/${pool}/ohlcv/hour?aggregate=1&limit=25`);
-  // ohlcv rows: [ts, o, h, l, close, vol], newest first
-  return pack("$CLAWD", d.data.attributes.ohlcv_list.map((r) => [r[0], r[4]]));
+  if (!pools.includes(CLAWD_POOL_FALLBACK)) pools.push(CLAWD_POOL_FALLBACK);
+  let lastErr;
+  for (const pool of pools) {
+    try {
+      const d = await get(`https://api.geckoterminal.com/api/v2/networks/base/pools/${pool}/ohlcv/hour?aggregate=1&limit=25`);
+      // ohlcv rows: [ts, o, h, l, close, vol], newest first
+      return pack("$CLAWD", d.data.attributes.ohlcv_list.map((r) => [r[0], r[4]]));
+    } catch (e) {
+      lastErr = e;
+      console.error(`clawd: pool ${pool.slice(0, 10)}… ${e.message}; trying next`);
+    }
+  }
+  throw lastErr;
 }
 
 const out = {};
