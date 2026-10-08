@@ -10,13 +10,32 @@ be stale and a walled account answers instantly anyway). No file / no accounts -
 prints nothing and the caller falls back to the default ~/.claude login.
 
   python3 pick_account.py [harness_dir]
+  python3 pick_account.py --token <config_dir>   # that account's setup-token, or nothing
+
+Token accounts (CLAUDE_TOKEN_<NAME> in <harness>/.clawd-harness.env) have a
+config dir with no login in it: `claude` there says "Not logged in" unless
+CLAUDE_CODE_OAUTH_TOKEN is set. Callers export --token's output (empty for a
+login account) right after setting CLAUDE_CONFIG_DIR.
 """
 import json, os, sys, time
 
 HOT = 97.0          # the harness's SUB_HOT: ~3% left is not a pool
 STALE_S = 12 * 3600 # a reading older than this ranks last (still usable)
 
-root = sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(__file__), "..", "..", "..")
+HARNESS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..")
+
+if sys.argv[1:2] == ["--token"]:
+    want = os.path.basename(os.path.normpath(sys.argv[2])) if len(sys.argv) > 2 else ""
+    try:
+        for line in open(os.path.join(HARNESS, ".clawd-harness.env")):
+            k, _, v = line.strip().partition("=")
+            if k.startswith("CLAUDE_TOKEN_") and k[13:].lower().replace("_", "-") == want:
+                print(v.strip().strip("'\""))
+    except OSError:
+        pass
+    sys.exit(0)
+
+root = sys.argv[1] if len(sys.argv) > 1 else HARNESS
 path = os.path.join(root, ".clawd-harness.sessions.json")
 try:
     accounts = json.load(open(path)).get("accounts", [])

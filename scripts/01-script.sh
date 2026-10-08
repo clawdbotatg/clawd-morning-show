@@ -38,13 +38,16 @@ run_pass() { # $1 = extra instruction (may be empty) -> raw model output
   local d out
   for d in "${ACCOUNTS[@]}"; do
     if [ -n "$d" ]; then export CLAUDE_CONFIG_DIR="$d"; else unset CLAUDE_CONFIG_DIR; fi
+    # token accounts have no login in their dir — hand claude the token
+    CLAUDE_CODE_OAUTH_TOKEN="$([ -n "$d" ] && python3 "$ROOT/scripts/pick_account.py" --token "$d")"
+    if [ -n "$CLAUDE_CODE_OAUTH_TOKEN" ]; then export CLAUDE_CODE_OAUTH_TOKEN; else unset CLAUDE_CODE_OAUTH_TOKEN; fi
     out="$({ cat "$PROMPT"
       [ -n "$1" ] && printf '\nEXTRA INSTRUCTION: %s\n' "$1"
       printf '\n--- TODAY'\''S DIGEST ---\n'
       cat "$DIGEST"
     } | claude -p --model sonnet || true)"
-    if printf '%s' "$out" | head -c 400 | grep -qiE "hit your .*limit|usage limit|rate limit"; then
-      log "account ${d:-default} is at its limit — trying next"
+    if printf '%s' "$out" | head -c 400 | grep -qiE "hit your .*limit|usage limit|rate limit|not logged in"; then
+      log "account ${d:-default} is walled or signed out — trying next"
       continue
     fi
     [ -n "$d" ] && log "account: $(basename "$d")"
